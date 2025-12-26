@@ -46,9 +46,10 @@ start_timer() {
             local now=$(date +%s)
             local phase_elapsed=$((now - PHASE_START_TIME))
             local total_elapsed=$((now - SCRIPT_START_TIME))
-            printf "\r${CYAN}⏱  Phase: %s | Total: %s${NC}   " \
+            printf "\r${CYAN}⏱  Phase: %s | Total: %s of %s${NC}   " \
                 "$(format_time $phase_elapsed)" \
-                "$(format_time $total_elapsed)"
+                "$(format_time $total_elapsed)" \
+                "$(format_time $MAX_RUNTIME_SECONDS)"
             sleep 1
         done
     ) &
@@ -204,7 +205,7 @@ while true; do
     fi
 
     echo -e "${BLUE}==================================================${NC}"
-    echo -e "${YELLOW}Iteration $phase_count | Time remaining: $(format_time $remaining_time)${NC}"
+    echo -e "${YELLOW}Iteration $phase_count${NC}"
     echo -e "${BLUE}==================================================${NC}"
 
     # Run the phase
@@ -244,6 +245,15 @@ echo
 if [ "$REMAINING_STEPS" = "0" ]; then
     COMPLETED_DIR="docs/completed"
     mkdir -p "$COMPLETED_DIR"
-    mv "$PLANNING_DOC_ABS" "$COMPLETED_DIR/"
-    echo -e "${GREEN}Moved spec to ${COMPLETED_DIR}/$(basename "$PLANNING_DOC_ABS")${NC}"
+    COMPLETED_PATH="${COMPLETED_DIR}/$(basename "$PLANNING_DOC_ABS")"
+    mv "$PLANNING_DOC_ABS" "$COMPLETED_PATH"
+    echo -e "${GREEN}Moved spec to ${COMPLETED_PATH}${NC}"
+
+    git add "$PLANNING_DOC_ABS" "$COMPLETED_PATH"
+    git commit -m "Move completed spec to docs/completed"
+    echo -e "${GREEN}Committed spec move${NC}"
 fi
+
+# Play ding ding sound to signal completion
+afplay /System/Library/Sounds/Glass.aiff
+afplay /System/Library/Sounds/Glass.aiff
