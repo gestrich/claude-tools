@@ -77,7 +77,7 @@ MAX_RUNTIME_SECONDS=$((45 * 60))
 
 # Parse arguments
 if [ $# -lt 1 ]; then
-    # No argument provided - find latest modified file in docs/proposed
+    # No argument provided - show last 5 modified files in docs/proposed
     PROPOSED_DIR="docs/proposed"
 
     if [ ! -d "$PROPOSED_DIR" ]; then
@@ -86,28 +86,48 @@ if [ $# -lt 1 ]; then
         exit 1
     fi
 
-    # Find the most recently modified file in docs/proposed
-    LATEST_FILE=$(ls -t "$PROPOSED_DIR"/*.md 2>/dev/null | head -1)
+    # Find the last 5 recently modified files in docs/proposed
+    FILES=()
+    while IFS= read -r line; do
+        FILES+=("$line")
+    done < <(ls -t "$PROPOSED_DIR"/*.md 2>/dev/null | head -5)
 
-    if [ -z "$LATEST_FILE" ]; then
+    if [ ${#FILES[@]} -eq 0 ]; then
         echo -e "${RED}Error: No .md files found in $PROPOSED_DIR${NC}"
         echo "Usage: $0 <planning-document.md> [max-minutes]"
         exit 1
     fi
 
     echo -e "${BLUE}No planning document specified.${NC}"
-    echo -e "Latest modified file in ${GREEN}$PROPOSED_DIR${NC}:"
-    echo -e "  ${YELLOW}$LATEST_FILE${NC}"
+    echo -e "Last ${GREEN}${#FILES[@]}${NC} modified files in ${GREEN}$PROPOSED_DIR${NC}:"
     echo
-    read -p "Use this file? (y/n): " confirm
 
-    if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-        echo -e "${RED}Aborted.${NC}"
-        echo "Usage: $0 <planning-document.md> [max-minutes]"
+    # Display the files with numbered options
+    for i in "${!FILES[@]}"; do
+        num=$((i + 1))
+        file="${FILES[$i]}"
+        filename=$(basename "$file")
+        echo -e "  ${YELLOW}$num${NC}) $filename"
+    done
+
+    echo
+    read -p "Select a file to implement [1-${#FILES[@]}] (default: 1): " selection
+
+    # Default to 1 if empty
+    if [ -z "$selection" ]; then
+        selection=1
+    fi
+
+    # Validate selection
+    if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt ${#FILES[@]} ]; then
+        echo -e "${RED}Invalid selection. Must be between 1 and ${#FILES[@]}.${NC}"
         exit 1
     fi
 
-    PLANNING_DOC="$LATEST_FILE"
+    # Get the selected file (adjust for 0-based array index)
+    PLANNING_DOC="${FILES[$((selection - 1))]}"
+    echo -e "Selected: ${GREEN}$(basename "$PLANNING_DOC")${NC}"
+    echo
 else
     PLANNING_DOC="$1"
 
