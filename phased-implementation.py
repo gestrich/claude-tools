@@ -78,6 +78,18 @@ class Timer:
         """Start the live timer display"""
         self.phase_start_time = time.time()
         self.running = True
+
+        try:
+            term_height = shutil.get_terminal_size().lines
+            # Set scroll region to exclude bottom line: \033[{top};{bottom}r
+            # This prevents content from scrolling into the timer line
+            sys.stdout.write(f"\033[1;{term_height-1}r")
+            # Move cursor to a safe position
+            sys.stdout.write(f"\033[{term_height-1};1H")
+            sys.stdout.flush()
+        except:
+            pass
+
         self.thread = threading.Thread(target=self._update_timer, daemon=True)
         self.thread.start()
 
@@ -86,16 +98,24 @@ class Timer:
         self.running = False
         if self.thread:
             self.thread.join(timeout=1)
-        # Clear the timer line at the bottom
+
+        # Reset scroll region and clear timer line
         try:
             term_height = shutil.get_terminal_size().lines
-            # Move to bottom line, clear it
-            print(f"\033[{term_height};1H\033[K", end='', flush=True)
+            # Reset scroll region to full screen: \033[r
+            sys.stdout.write("\033[r")
+            # Move to bottom line and clear it
+            sys.stdout.write(f"\033[{term_height};1H\033[K")
+            # Move cursor to a normal position
+            sys.stdout.write(f"\033[{term_height-1};1H\n")
+            sys.stdout.flush()
         except:
-            print(f"\r{' ' * 80}\r", end='', flush=True)
+            print(f"\r{' ' * 80}\r", flush=True)
 
     def _update_timer(self):
         """Background thread that updates timer display"""
+        last_line_content = ""
+
         while self.running:
             now = time.time()
             phase_elapsed = int(now - self.phase_start_time)
@@ -110,18 +130,26 @@ class Timer:
                 # Get terminal dimensions
                 term_width, term_height = shutil.get_terminal_size()
 
-                # Pad or truncate timer to fit terminal width
-                if len(timer_display) > term_width:
+                # Pad to fit terminal width
+                display_len = len(timer_display)
+                if display_len < term_width:
+                    timer_display = timer_display + (' ' * (term_width - display_len))
+                elif display_len > term_width:
                     timer_display = timer_display[:term_width]
 
-                # Save cursor position, move to bottom line, print timer, restore cursor
-                # \033[s = save cursor, \033[{row};{col}H = move cursor, \033[K = clear to end of line, \033[u = restore cursor
-                print(f"\033[s\033[{term_height};1H\033[K{timer_display}\033[u", end='', flush=True)
-            except:
-                # Fallback to simple overwrite if terminal size unavailable
-                print(f"\r{timer_display}   ", end='', flush=True)
+                # Use absolute positioning - move to bottom left, clear line, write timer
+                # Don't save/restore cursor - always write to absolute bottom
+                # \033[{row};{col}H = move to row,col; \033[K = clear to end of line
+                sys.stdout.write(f"\033[{term_height};1H\033[K{timer_display}")
+                sys.stdout.flush()
 
-            time.sleep(1)
+                last_line_content = timer_display
+            except Exception as e:
+                # Fallback to simple overwrite if terminal size unavailable
+                sys.stdout.write(f"\r{timer_display}   ")
+                sys.stdout.flush()
+
+            time.sleep(0.5)  # Update more frequently for smoother display
 
 
 def clauded(instruction: str, schema: dict, timer: Optional[Timer] = None) -> dict:
