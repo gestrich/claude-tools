@@ -1,6 +1,6 @@
-# Review Bill Skill
+# Review Bill Command
 
-When the user invokes this skill, help them review code changes by creating a structured review document.
+When the user invokes this command, help them review code changes by creating a structured review document.
 
 ## Determining What to Review
 

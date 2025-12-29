@@ -1,6 +1,6 @@
-# Planning Skill
+# Planning Command
 
-When the user invokes this skill, create a planning document in `docs/proposed/<doc-name>.md` where the doc name reflects the plan appropriately (e.g., `add-user-authentication.md`, `refactor-api-layer.md`).
+When the user invokes this command, create a planning document in `docs/proposed/<doc-name>.md` where the doc name reflects the plan appropriately (e.g., `add-user-authentication.md`, `refactor-api-layer.md`).
 
 ## Planning Document Format
 
