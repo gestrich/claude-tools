@@ -1,4 +1,4 @@
-# Review Skill
+# Review Bill Skill
 
 When the user invokes this skill, help them review code changes by creating a structured review document.
 
