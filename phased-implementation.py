@@ -255,14 +255,16 @@ def select_planning_doc(proposed_dir: str = "docs/proposed") -> Optional[str]:
 
 def main():
     # Parse arguments
-    max_runtime_seconds = 45 * 60  # default 45 minutes
+    max_runtime_seconds = 60 * 60  # default 1 hour
 
     if len(sys.argv) < 2:
         planning_doc = select_planning_doc()
         if not planning_doc:
             sys.exit(1)
+        move_on_complete = True
     else:
         planning_doc = sys.argv[1]
+        move_on_complete = False
         if len(sys.argv) >= 3:
             max_runtime_seconds = int(sys.argv[2]) * 60
 
@@ -387,8 +389,8 @@ def main():
     print(f"Total time: {Colors.CYAN}{format_time(int(total_time))}{Colors.NC}")
     print(f"Planning document: {Colors.GREEN}{planning_doc}{Colors.NC}\n")
 
-    # Move completed spec to docs/completed
-    if next_phase_idx == -1:
+    # Move completed spec to docs/completed (only for interactive selection)
+    if next_phase_idx == -1 and move_on_complete:
         completed_dir = Path("docs/completed")
         completed_dir.mkdir(parents=True, exist_ok=True)
         completed_path = completed_dir / Path(planning_doc).name
@@ -402,7 +404,8 @@ def main():
         subprocess.run(['git', 'commit', '-m', 'Move completed spec to docs/completed'])
         print(f"{Colors.GREEN}Committed spec move{Colors.NC}\n")
 
-        # Play completion sound
+    # Play completion sound
+    if next_phase_idx == -1:
         subprocess.run(['afplay', '/System/Library/Sounds/Glass.aiff'])
         subprocess.run(['afplay', '/System/Library/Sounds/Glass.aiff'])
 
