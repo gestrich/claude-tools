@@ -1,7 +1,7 @@
 import ArgumentParser
 
 @main
-struct DevPilot: ParsableCommand {
+struct DevPilot: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "dev-pilot",
         abstract: "Voice-driven development pipeline",

@@ -371,7 +371,7 @@ Create documentation for setting up the Apple Shortcut.
 
 ---
 
-- [ ] Phase 8: Integration testing and end-to-end verification
+- [x] Phase 8: Integration testing and end-to-end verification
 
 1. **Build**: `cd cli && swift build -c release` succeeds
 2. **Test repos.json**: Verify the schema loads correctly
@@ -383,3 +383,5 @@ Create documentation for setting up the Apple Shortcut.
 8. **Test the Apple Shortcut**: (Manual — record voice, verify plan is generated on Mac)
 
 Fix any issues discovered during testing.
+
+**Completed**: Wrote 45 integration tests across 9 test suites covering: ReposConfig loading (valid JSON, null optionals, multiple repos, lookup by ID, error cases for missing files, invalid JSON, missing fields, and loading the actual `repos.json`), model Codable round-trips (RepoMatch, GeneratedPlan, PhaseResult, PhaseStatus, PhaseStatusResponse, including simulated Claude JSON output), TimerDisplay formatting (zero, seconds, minutes, hours, large values), Repository sub-model deserialization (Verification, PullRequestConfig with and without optional fields), CLI argument parsing (Plan and Execute subcommands with all option combinations and validation), and error description coverage for all typed errors (ClaudeService, PlanGenerator, PhaseExecutor, ReposConfig.LoadError). Fixed a critical bug: `DevPilot` root command was `ParsableCommand` but subcommands were `AsyncParsableCommand` — swift-argument-parser silently showed help instead of dispatching to async subcommands. Changed to `AsyncParsableCommand` to fix. Verified release build, `voice-plan.sh` SSH entry point (executable, routes correctly, works from any directory), and `phased-implementation.py` backward compatibility (valid Python, unchanged).
