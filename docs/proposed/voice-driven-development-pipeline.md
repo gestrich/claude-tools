@@ -68,7 +68,7 @@ struct DevPilot: ParsableCommand {
 
 ---
 
-- [ ] Phase 2: Implement the Claude service layer
+- [x] Phase 2: Implement the Claude service layer
 
 Build the service that calls Claude CLI as a subprocess — the equivalent of the Python `clauded()` function.
 
@@ -97,6 +97,8 @@ struct PhaseResult: Codable {
 ```
 
 **Outcome**: A reusable service that can call Claude with any prompt + JSON schema and decode the response into Swift types.
+
+**Completed**: Implemented `ClaudeService.call<T: Decodable>()` using Foundation `Process` with `Pipe` for stdout/stderr capture. Uses `/usr/bin/env` to resolve `caffeinate` and `claude` from PATH. Parses the verbose JSON array via `JSONSerialization`, extracts `structured_output` from the last array element, then decodes into the generic `T` type via `JSONDecoder`. Three error cases: `nonZeroExit` (with exit code and stderr), `jsonParsingFailed` (with detail string), and `noStructuredOutput`. The `jsonSchema` parameter is `String` (not `[String: Any]`) to keep the API clean — callers encode the schema JSON themselves. `ClaudeResponse.swift` models (`RepoMatch`, `GeneratedPlan`, `PhaseResult`) were already correct from Phase 1 scaffolding.
 
 ---
 
