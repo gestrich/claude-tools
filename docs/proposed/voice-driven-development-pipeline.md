@@ -316,7 +316,7 @@ After executing Phase 3 (which appends new phases to the markdown), the next `ge
 
 ---
 
-- [ ] Phase 6: Create the SSH entry point
+- [x] Phase 6: Create the SSH entry point
 
 The Apple Shortcut needs a simple entry point to call via SSH.
 
@@ -340,6 +340,8 @@ ssh bill@macbook "/Users/bill/Developer/personal/claude-tools/voice-plan.sh --ex
 Also add a build step / Makefile target so `swift build -c release` is easy to run after changes.
 
 **Outcome**: A single SSH-callable script that bridges the Apple Shortcut to the Swift CLI.
+
+**Completed**: Created `voice-plan.sh` in the project root as the SSH entry point — it `cd`s to the script's directory and invokes `cli/.build/release/dev-pilot plan "$@"`, passing all arguments through (including `--execute` flag). Created a `Makefile` with `build` (runs `swift build -c release` in the `cli/` directory) and `clean` targets. Release build verified successfully, producing the `dev-pilot` binary at `cli/.build/release/dev-pilot`.
 
 ---
 
