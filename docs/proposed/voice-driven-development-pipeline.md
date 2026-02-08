@@ -102,7 +102,7 @@ struct PhaseResult: Codable {
 
 ---
 
-- [ ] Phase 3: Implement repository config loading
+- [x] Phase 3: Implement repository config loading
 
 Build the models and loading for `repos.json`.
 
@@ -167,6 +167,8 @@ Also create the initial `repos.json` file in the project root with 2-3 placehold
 ```
 
 **Outcome**: Type-safe loading of repository metadata with Codable.
+
+**Completed**: Added `ReposConfig.load(from:)` static method that loads from an explicit path or defaults to `repos.json` in the current working directory. Uses `JSONDecoder` for type-safe Codable decoding. Added `repository(withId:)` lookup helper. Two typed errors: `fileNotFound` and `decodingFailed`. Created `repos.json` in the project root with three placeholder entries (example-ios, example-backend, claude-tools) for Bill to customize. The `--config` option already exists on both `Plan` and `Execute` commands from Phase 1 scaffolding. Codable models were already correct from Phase 1.
 
 ---
 

@@ -1,0 +1,58 @@
+{
+  "repositories": [
+    {
+      "id": "example-ios",
+      "path": "/Users/bill/Developer/example-ios",
+      "description": "Main iOS application",
+      "recentFocus": "Working on flight planner improvements",
+      "skills": ["swift-testing", "design-kit"],
+      "architectureDocs": ["docs/architecture.md"],
+      "verification": {
+        "commands": ["xcodebuild -scheme App -sdk iphonesimulator test"],
+        "notes": "Run on iPhone 16 simulator"
+      },
+      "pullRequest": {
+        "baseBranch": "develop",
+        "branchNamingConvention": "feature/JIRA-123-description",
+        "template": null,
+        "notes": "Assign to Bill for review"
+      }
+    },
+    {
+      "id": "example-backend",
+      "path": "/Users/bill/Developer/example-backend",
+      "description": "Backend API service",
+      "recentFocus": null,
+      "skills": [],
+      "architectureDocs": [],
+      "verification": {
+        "commands": ["swift test"],
+        "notes": null
+      },
+      "pullRequest": {
+        "baseBranch": "main",
+        "branchNamingConvention": "feature/description",
+        "template": null,
+        "notes": null
+      }
+    },
+    {
+      "id": "claude-tools",
+      "path": "/Users/bill/Developer/personal/claude-tools",
+      "description": "Voice-driven development pipeline and Claude CLI tools",
+      "recentFocus": "Building DevPilot CLI",
+      "skills": [],
+      "architectureDocs": [],
+      "verification": {
+        "commands": ["cd cli && swift build"],
+        "notes": null
+      },
+      "pullRequest": {
+        "baseBranch": "main",
+        "branchNamingConvention": "feature/description",
+        "template": null,
+        "notes": null
+      }
+    }
+  ]
+}
