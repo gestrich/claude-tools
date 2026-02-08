@@ -20,7 +20,7 @@ struct PlanGenerator {
         }
     }
 
-    func generate(voiceText: String, repos: ReposConfig) async throws -> URL {
+    func generate(voiceText: String, repos: ReposConfig) async throws -> (URL, Repository) {
         // Step 1: Match repo
         let repoMatch: RepoMatch = try await matchRepo(voiceText: voiceText, repos: repos)
         print("Matched repository: \(repoMatch.repoId)")
@@ -41,7 +41,7 @@ struct PlanGenerator {
         let planURL = try writePlan(plan, repo: repo)
         print("Plan written to: \(planURL.path)")
 
-        return planURL
+        return (planURL, repo)
     }
 
     private func matchRepo(voiceText: String, repos: ReposConfig) async throws -> RepoMatch {

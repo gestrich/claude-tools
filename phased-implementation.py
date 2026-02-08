@@ -255,7 +255,7 @@ def select_planning_doc(proposed_dir: str = "docs/proposed") -> Optional[str]:
 
 def main():
     # Parse arguments
-    max_runtime_seconds = 60 * 60  # default 1 hour
+    max_runtime_seconds = 90 * 60  # default 90 minutes
 
     if len(sys.argv) < 2:
         planning_doc = select_planning_doc()

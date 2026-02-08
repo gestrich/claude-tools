@@ -20,13 +20,15 @@ struct Plan: AsyncParsableCommand {
         print("Loaded \(repos.repositories.count) repositories from config")
 
         let generator = PlanGenerator(claudeService: ClaudeService())
-        let planURL = try await generator.generate(voiceText: text, repos: repos)
+        let (planURL, matchedRepo) = try await generator.generate(voiceText: text, repos: repos)
 
         if execute {
             print("\nStarting execution...")
-            let executeCmd = try Execute.parse([
-                "--plan", planURL.path,
-            ])
+            var args = ["--plan", planURL.path, "--repo", matchedRepo.path]
+            if let config = config {
+                args += ["--config", config]
+            }
+            let executeCmd = try Execute.parse(args)
             try await executeCmd.run()
         }
     }

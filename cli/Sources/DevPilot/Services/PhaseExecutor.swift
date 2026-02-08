@@ -17,7 +17,7 @@ struct PhaseExecutor {
         }
     }
 
-    func execute(planPath: URL, repoPath: URL?, maxMinutes: Int) async throws {
+    func execute(planPath: URL, repoPath: URL?, maxMinutes: Int, worktreeService: WorktreeService? = nil) async throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: planPath.path) else {
             throw Error.planNotFound(planPath.path)
@@ -126,6 +126,13 @@ struct PhaseExecutor {
         if nextIndex == -1 {
             moveToCompleted(planPath: planPath)
             playCompletionSound()
+
+            // Clean up worktree after successful completion
+            if let worktreeService = worktreeService, let repoPath = repoPath {
+                print()
+                Self.printColored("Cleaning up worktree...", color: .cyan)
+                try? worktreeService.removeWorktree(worktreePath: repoPath)
+            }
         }
     }
 

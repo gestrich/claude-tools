@@ -30,14 +30,41 @@ struct Execute: AsyncParsableCommand {
             planURL = selected
         }
 
-        let repoURL: URL?
-        if let repo {
-            repoURL = URL(fileURLWithPath: (repo as NSString).standardizingPath)
-        } else {
-            repoURL = nil
+        guard let repo else {
+            throw ValidationError("--repo is required for execution")
         }
 
+        let mainRepoURL = URL(fileURLWithPath: (repo as NSString).standardizingPath)
+
+        // Load repo config to get base branch
+        let repos = try ReposConfig.load(from: config)
+
+        // Try to find the matching repo config by path
+        guard let repoConfig = repos.repositories.first(where: { $0.path == mainRepoURL.path }) else {
+            throw ValidationError("Repository at \(mainRepoURL.path) not found in repos.json")
+        }
+
+        // Create worktree
+        let worktreeService = WorktreeService()
+        let worktreeURL = try worktreeService.createWorktree(
+            repoPath: mainRepoURL,
+            baseBranch: repoConfig.pullRequest.baseBranch
+        )
+
+        // Execute in worktree
         let executor = PhaseExecutor(claudeService: ClaudeService())
-        try await executor.execute(planPath: planURL, repoPath: repoURL, maxMinutes: maxMinutes)
+        do {
+            try await executor.execute(
+                planPath: planURL,
+                repoPath: worktreeURL,
+                maxMinutes: maxMinutes,
+                worktreeService: worktreeService
+            )
+        } catch {
+            // Clean up worktree on error
+            print("\nCleaning up worktree due to error...")
+            try? worktreeService.removeWorktree(worktreePath: worktreeURL)
+            throw error
+        }
     }
 }
