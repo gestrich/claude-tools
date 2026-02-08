@@ -172,7 +172,7 @@ Also create the initial `repos.json` file in the project root with 2-3 placehold
 
 ---
 
-- [ ] Phase 4: Implement the `plan` subcommand
+- [x] Phase 4: Implement the `plan` subcommand
 
 Build the `Plan` command that takes voice text and generates a plan document.
 
@@ -250,6 +250,8 @@ It will also append a Testing/Verification phase and a Create Pull Request phase
 - All phases must be unchecked (`- [ ]`). None are completed at this stage.
 
 **Outcome**: `dev-pilot plan "some voice text"` generates a well-structured plan document in the target repo.
+
+**Completed**: `PlanCommand.swift` changed from `ParsableCommand` to `AsyncParsableCommand` to support async Claude calls. The `run()` method loads `ReposConfig`, creates a `PlanGenerator`, and calls `generate()`. If `--execute` is passed, it invokes `Execute.parse()` with the generated plan path. `PlanGenerator.swift` implements the full two-step flow: `matchRepo()` sends the voice text + repo list to Claude and gets back a `RepoMatch`; `generatePlan()` sends the interpreted request + full repo metadata to Claude and gets back a `GeneratedPlan` with markdown content and filename. `writePlan()` creates `docs/proposed/` in the target repo if needed and writes the plan file. Three typed errors: `noMatchingRepo`, `repoNotFound`, `writeError`. All Claude prompts include instructions about voice transcription tolerance and the plan-only constraint.
 
 ---
 
