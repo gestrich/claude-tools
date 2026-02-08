@@ -345,7 +345,7 @@ Also add a build step / Makefile target so `swift build -c release` is easy to r
 
 ---
 
-- [ ] Phase 7: Document the Apple Shortcut setup
+- [x] Phase 7: Document the Apple Shortcut setup
 
 Create documentation for setting up the Apple Shortcut.
 
@@ -366,6 +366,8 @@ Create documentation for setting up the Apple Shortcut.
 - How to enable Remote Login on the Mac (System Settings → General → Sharing)
 - How to test the shortcut
 - Troubleshooting tips (SSH connection failures, transcription issues)
+
+**Completed**: Created `docs/apple-shortcut-setup.md` covering the full setup: enabling Remote Login on macOS, SSH key authentication between iPhone and Mac (both automatic via Shortcuts and manual setup), step-by-step Shortcut creation (Record Audio → Transcribe Audio → Run Script over SSH), an auto-execute variant using the `--execute` flag, testing instructions (SSH connectivity, local pipeline, and end-to-end from iPhone), and troubleshooting for SSH failures, transcription issues, CLI errors, and silent failures.
 
 ---
 
