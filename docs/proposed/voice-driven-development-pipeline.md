@@ -255,7 +255,7 @@ It will also append a Testing/Verification phase and a Create Pull Request phase
 
 ---
 
-- [ ] Phase 5: Implement the `execute` subcommand
+- [x] Phase 5: Implement the `execute` subcommand
 
 Build the `Execute` command that runs phases from a planning document — the Swift equivalent of `phased-implementation.py`'s main loop.
 
@@ -311,6 +311,8 @@ struct Execute: ParsableCommand {
 After executing Phase 3 (which appends new phases to the markdown), the next `getPhaseStatus()` call re-reads the document and picks up the newly added phases. This should work naturally since status is re-read after every phase.
 
 **Outcome**: `dev-pilot execute` runs phases one-by-one with live timer, repo context, and dynamic phase support.
+
+**Completed**: Changed `Execute` from `ParsableCommand` to `AsyncParsableCommand`. `ExecuteCommand.swift` resolves the plan path (either from `--plan` or interactive selection via `PhaseExecutor.selectPlanningDoc()`), resolves the optional `--repo` path, and delegates to `PhaseExecutor.execute()`. `PhaseExecutor.swift` implements the full execution loop: `getPhaseStatus()` calls Claude with a JSON schema matching the Python `STATUS_SCHEMA` to get phase list and next index; `executePhase()` calls Claude to implement each phase with timer running; the main loop iterates phases, enforces `--max-minutes` time limit, re-reads status after each phase (supporting dynamic phase generation from Phase 3), and displays colored progress output. On completion, moves spec to `docs/completed/` and plays Glass.aiff sound. `TimerDisplay.swift` is a `Sendable` class using a background `Thread` that updates the bottom terminal line via ANSI scroll-region escape codes (`\033[1;{height-1}r`), matching the Python `Timer` class behavior. Uses `ioctl(TIOCGWINSZ)` for terminal dimensions. `PhaseStatus` model updated to `Codable` with a companion `PhaseStatusResponse` type for the Claude JSON schema response. Updated `PlanCommand.swift` to call `Execute.run()` with `await` since it's now async.
 
 ---
 

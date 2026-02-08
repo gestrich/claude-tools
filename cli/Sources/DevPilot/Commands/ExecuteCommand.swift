@@ -1,6 +1,7 @@
 import ArgumentParser
+import Foundation
 
-struct Execute: ParsableCommand {
+struct Execute: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Execute phases from a planning document"
     )
@@ -17,7 +18,26 @@ struct Execute: ParsableCommand {
     @Option(help: "Path to repos.json config")
     var config: String?
 
-    func run() throws {
-        print("Executing plan...")
+    func run() async throws {
+        let planURL: URL
+
+        if let plan {
+            planURL = URL(fileURLWithPath: (plan as NSString).standardizingPath)
+        } else {
+            guard let selected = PhaseExecutor.selectPlanningDoc() else {
+                throw ExitCode.failure
+            }
+            planURL = selected
+        }
+
+        let repoURL: URL?
+        if let repo {
+            repoURL = URL(fileURLWithPath: (repo as NSString).standardizingPath)
+        } else {
+            repoURL = nil
+        }
+
+        let executor = PhaseExecutor(claudeService: ClaudeService())
+        try await executor.execute(planPath: planURL, repoPath: repoURL, maxMinutes: maxMinutes)
     }
 }

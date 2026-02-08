@@ -27,7 +27,7 @@ struct Plan: AsyncParsableCommand {
             let executeCmd = try Execute.parse([
                 "--plan", planURL.path,
             ])
-            try executeCmd.run()
+            try await executeCmd.run()
         }
     }
 }

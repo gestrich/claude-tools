@@ -1,7 +1,15 @@
 import Foundation
 
-struct PhaseStatus {
-    let index: Int
+struct PhaseStatus: Codable {
     let description: String
-    let isCompleted: Bool
+    let status: String
+
+    var isCompleted: Bool {
+        status == "completed"
+    }
+}
+
+struct PhaseStatusResponse: Codable {
+    let phases: [PhaseStatus]
+    let nextPhaseIndex: Int
 }
