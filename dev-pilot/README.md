@@ -82,7 +82,15 @@ dev-pilot execute --plan docs/proposed/feature.md --repo /path/to/repo --max-min
 
 ### Repository Configuration
 
-DevPilot uses `repos.json` to provide context about your repositories. Create this file in your project root:
+DevPilot uses `repos.json` to provide context about your repositories. By default, it looks for the configuration at `~/.dev-pilot/repos.json`. You can override this with the `--config` flag.
+
+Create the configuration directory and file:
+
+```bash
+mkdir -p ~/.dev-pilot
+```
+
+Then create `~/.dev-pilot/repos.json` with the following structure:
 
 ```json
 {
@@ -199,7 +207,7 @@ Generate an implementation plan from voice text.
 
 **Options:**
 - `--execute` - Execute the plan immediately after generating it
-- `--config <path>` - Path to repos.json config file (default: ./repos.json)
+- `--config <path>` - Path to repos.json config file (default: ~/.dev-pilot/repos.json)
 
 **Examples:**
 ```bash
@@ -216,7 +224,7 @@ Execute phases from a planning document.
 - `--plan <path>` - Path to planning document (omit for interactive selection)
 - `--repo <path>` - Path to main repository (required, used to create worktree)
 - `--max-minutes <int>` - Maximum runtime in minutes (default: 90)
-- `--config <path>` - Path to repos.json config file (default: ./repos.json)
+- `--config <path>` - Path to repos.json config file (default: ~/.dev-pilot/repos.json)
 
 **Note:** The `--repo` option is required and should point to your main repository. A worktree will be automatically created based on this repository and the `baseBranch` from `repos.json`.
 
@@ -281,7 +289,7 @@ If not found, SSH sessions may not load your shell profile. Update `voice-plan.s
 
 ### Plan Generation Fails
 
-- Verify `repos.json` exists and is valid JSON
+- Verify `~/.dev-pilot/repos.json` exists and is valid JSON
 - Check that Claude CLI is authenticated: `claude auth login`
 - Ensure repository paths in `repos.json` are absolute and exist
 

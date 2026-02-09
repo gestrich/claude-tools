@@ -2,6 +2,12 @@ import Foundation
 
 struct PhaseExecutor {
     let claudeService: ClaudeService
+    let logService: LogService?
+
+    init(claudeService: ClaudeService, logService: LogService? = nil) {
+        self.claudeService = claudeService
+        self.logService = logService
+    }
 
     enum Error: Swift.Error, LocalizedError {
         case planNotFound(String)
@@ -29,7 +35,7 @@ struct PhaseExecutor {
 
         printHeader(planPath: planPath, maxRuntimeSeconds: maxRuntimeSeconds)
 
-        printColored("Fetching phase information...", color: .cyan)
+        logColored("Fetching phase information...", color: .cyan)
         var statusResponse: PhaseStatusResponse = try await getPhaseStatus(planPath: planPath, repoPath: repoPath)
         var phases = statusResponse.phases
         var nextIndex = statusResponse.nextPhaseIndex
@@ -37,18 +43,18 @@ struct PhaseExecutor {
         printPhaseOverview(phases: phases)
 
         if nextIndex == -1 {
-            printColored("All steps already complete!", color: .green)
+            logColored("All steps already complete!", color: .green)
             return
         }
 
-        printColored("Starting from Step \(nextIndex + 1): \(phases[nextIndex].description)\n", color: .cyan)
+        logColored("Starting from Step \(nextIndex + 1): \(phases[nextIndex].description)\n", color: .cyan)
 
         var phasesExecuted = 0
 
         while nextIndex != -1 {
             let elapsed = Date().timeIntervalSince(scriptStart)
             if Int(elapsed) >= maxRuntimeSeconds {
-                printColored("Time limit reached (\(TimerDisplay.formatTime(maxRuntimeSeconds)))", color: .yellow)
+                logColored("Time limit reached (\(TimerDisplay.formatTime(maxRuntimeSeconds)))", color: .yellow)
                 break
             }
 
@@ -56,9 +62,9 @@ struct PhaseExecutor {
             let totalSteps = phases.count
 
             printSeparator()
-            printColored("Step \(nextIndex + 1) of \(totalSteps) -> \(phase.description)", color: .yellow)
+            logColored("Step \(nextIndex + 1) of \(totalSteps) -> \(phase.description)", color: .yellow)
             printDivider()
-            printColored("Running claude...\n", color: .blue)
+            logColored("Running claude...\n", color: .blue)
 
             let phaseStart = Date()
 
@@ -75,28 +81,27 @@ struct PhaseExecutor {
                 let totalElapsed = Int(Date().timeIntervalSince(scriptStart))
 
                 if !result.success {
-                    printColored("\nStep \(nextIndex + 1) reported failure", color: .red)
-                    printColored("⏱  Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+                    logColored("\nStep \(nextIndex + 1) reported failure", color: .red)
+                    logColored("Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
                     throw Error.phaseFailed(nextIndex, phase.description)
                 }
 
-                printColored("\nStep \(nextIndex + 1) completed successfully", color: .green)
-                printColored("⏱  Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+                logColored("\nStep \(nextIndex + 1) completed successfully", color: .green)
+                logColored("Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
                 printDivider()
-                print()
+                log("")
 
             } catch let error as ClaudeService.Error {
                 let phaseElapsed = Int(Date().timeIntervalSince(phaseStart))
                 let totalElapsed = Int(Date().timeIntervalSince(scriptStart))
-                printColored("\nPhase \(nextIndex + 1) failed: \(error.localizedDescription)", color: .red)
-                printColored("⏱  Phase time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+                logColored("\nPhase \(nextIndex + 1) failed: \(error.localizedDescription)", color: .red)
+                logColored("Phase time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
                 throw Error.phaseFailed(nextIndex, phase.description)
             }
 
             phasesExecuted += 1
 
-            // Re-read status (handles dynamic phase generation from Phase 3)
-            printColored("Fetching updated phase status...", color: .cyan)
+            logColored("Fetching updated phase status...", color: .cyan)
             statusResponse = try await getPhaseStatus(planPath: planPath, repoPath: repoPath)
             phases = statusResponse.phases
             nextIndex = statusResponse.nextPhaseIndex
@@ -106,31 +111,29 @@ struct PhaseExecutor {
             }
         }
 
-        // Final summary
         let totalTime = Int(Date().timeIntervalSince(scriptStart))
         printSeparator()
 
         if nextIndex == -1 {
-            printColored("✓ All steps completed successfully!", color: .green)
+            logColored("All steps completed successfully!", color: .green)
         } else {
             let remaining = phases.filter { !$0.isCompleted }.count
-            printColored("Time limit reached — \(remaining) steps may remain", color: .yellow)
+            logColored("Time limit reached — \(remaining) steps may remain", color: .yellow)
         }
 
         printSeparator()
-        printColored("Total steps executed: \(phasesExecuted)", color: .green)
-        printColored("Total time: \(TimerDisplay.formatTime(totalTime))", color: .cyan)
-        printColored("Planning document: \(planPath.path)", color: .green)
-        print()
+        logColored("Total steps executed: \(phasesExecuted)", color: .green)
+        logColored("Total time: \(TimerDisplay.formatTime(totalTime))", color: .cyan)
+        logColored("Planning document: \(planPath.path)", color: .green)
+        log("")
 
         if nextIndex == -1 {
             moveToCompleted(planPath: planPath)
             playCompletionSound()
 
-            // Clean up worktree after successful completion
             if let worktreeService = worktreeService, let repoPath = repoPath {
-                print()
-                Self.printColored("Cleaning up worktree...", color: .cyan)
+                log("")
+                logColored("Cleaning up worktree...", color: .cyan)
                 try? worktreeService.removeWorktree(worktreePath: repoPath)
             }
         }
@@ -160,7 +163,8 @@ struct PhaseExecutor {
         return try await claudeService.call(
             prompt: prompt,
             jsonSchema: Self.statusSchema,
-            workingDirectory: repoPath
+            workingDirectory: repoPath,
+            logService: logService
         )
     }
 
@@ -191,7 +195,8 @@ struct PhaseExecutor {
         return try await claudeService.call(
             prompt: prompt,
             jsonSchema: Self.executionSchema,
-            workingDirectory: repoPath
+            workingDirectory: repoPath,
+            logService: logService
         )
     }
 
@@ -200,7 +205,7 @@ struct PhaseExecutor {
     static func selectPlanningDoc(proposedDir: String = "docs/proposed") -> URL? {
         let fm = FileManager.default
         guard fm.fileExists(atPath: proposedDir) else {
-            Self.printColored("Error: Directory not found: \(proposedDir)", color: .red)
+            Self.printColoredStatic("Error: Directory not found: \(proposedDir)", color: .red)
             return nil
         }
 
@@ -210,7 +215,7 @@ struct PhaseExecutor {
             includingPropertiesForKeys: [.contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else {
-            Self.printColored("Error: Could not read \(proposedDir)", color: .red)
+            Self.printColoredStatic("Error: Could not read \(proposedDir)", color: .red)
             return nil
         }
 
@@ -224,11 +229,11 @@ struct PhaseExecutor {
             .prefix(5))
 
         guard !mdFiles.isEmpty else {
-            Self.printColored("Error: No .md files found in \(proposedDir)", color: .red)
+            Self.printColoredStatic("Error: No .md files found in \(proposedDir)", color: .red)
             return nil
         }
 
-        Self.printColored("No planning document specified.", color: .blue)
+        Self.printColoredStatic("No planning document specified.", color: .blue)
         print("Last \(ANSIColor.green.rawValue)\(mdFiles.count)\(ANSIColor.reset.rawValue) modified files in \(ANSIColor.green.rawValue)\(proposedDir)\(ANSIColor.reset.rawValue):\n")
 
         for (i, file) in mdFiles.enumerated() {
@@ -242,7 +247,7 @@ struct PhaseExecutor {
         let selection = input.isEmpty ? "1" : input
 
         guard let idx = Int(selection), idx >= 1, idx <= mdFiles.count else {
-            Self.printColored("Invalid selection.", color: .red)
+            Self.printColoredStatic("Invalid selection.", color: .red)
             return nil
         }
 
@@ -264,7 +269,7 @@ struct PhaseExecutor {
 
             let destPath = completedDir.appendingPathComponent(planPath.lastPathComponent)
             try fm.moveItem(at: planPath, to: destPath)
-            Self.printColored("Moved spec to \(destPath.path)", color: .green)
+            logColored("Moved spec to \(destPath.path)", color: .green)
 
             let gitAdd = Process()
             gitAdd.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -278,10 +283,10 @@ struct PhaseExecutor {
             try gitCommit.run()
             gitCommit.waitUntilExit()
 
-            Self.printColored("Committed spec move", color: .green)
-            print()
+            logColored("Committed spec move", color: .green)
+            log("")
         } catch {
-            Self.printColored("Could not move spec: \(error.localizedDescription)", color: .yellow)
+            logColored("Could not move spec: \(error.localizedDescription)", color: .yellow)
         }
     }
 
@@ -306,45 +311,58 @@ struct PhaseExecutor {
         case reset = "\u{1B}[0m"
     }
 
-    private static func printColored(_ text: String, color: ANSIColor) {
+    private static func printColoredStatic(_ text: String, color: ANSIColor) {
         print("\(color.rawValue)\(text)\(ANSIColor.reset.rawValue)")
     }
 
-    private func printColored(_ text: String, color: ANSIColor) {
-        Self.printColored(text, color: color)
+    private func log(_ message: String) {
+        if let logService {
+            logService.log(message)
+        } else {
+            print(message)
+        }
+    }
+
+    private func logColored(_ text: String, color: ANSIColor) {
+        let formatted = "\(color.rawValue)\(text)\(ANSIColor.reset.rawValue)"
+        if let logService {
+            logService.log(formatted)
+        } else {
+            print(formatted)
+        }
     }
 
     private func printHeader(planPath: URL, maxRuntimeSeconds: Int) {
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        Self.printColored("Phased Implementation Automation", color: .blue)
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        print("Planning document: \(ANSIColor.green.rawValue)\(planPath.path)\(ANSIColor.reset.rawValue)")
-        print("Max runtime: \(ANSIColor.green.rawValue)\(TimerDisplay.formatTime(maxRuntimeSeconds))\(ANSIColor.reset.rawValue)")
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        print()
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        logColored("Phased Implementation Automation", color: .blue)
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        log("Planning document: \(ANSIColor.green.rawValue)\(planPath.path)\(ANSIColor.reset.rawValue)")
+        log("Max runtime: \(ANSIColor.green.rawValue)\(TimerDisplay.formatTime(maxRuntimeSeconds))\(ANSIColor.reset.rawValue)")
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        log("")
     }
 
     private func printPhaseOverview(phases: [PhaseStatus]) {
-        print()
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        Self.printColored("Implementation Steps", color: .blue)
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        print("Total steps: \(ANSIColor.green.rawValue)\(phases.count)\(ANSIColor.reset.rawValue)\n")
+        log("")
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        logColored("Implementation Steps", color: .blue)
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        log("Total steps: \(ANSIColor.green.rawValue)\(phases.count)\(ANSIColor.reset.rawValue)\n")
 
         for (i, phase) in phases.enumerated() {
             let color: ANSIColor = phase.isCompleted ? .green : .yellow
-            print("  \(color.rawValue)\(i + 1): \(phase.description)\(ANSIColor.reset.rawValue)")
+            log("  \(color.rawValue)\(i + 1): \(phase.description)\(ANSIColor.reset.rawValue)")
         }
 
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
-        print()
+        logColored(String(repeating: "=", count: 50), color: .blue)
+        log("")
     }
 
     private func printSeparator() {
-        Self.printColored(String(repeating: "=", count: 50), color: .blue)
+        logColored(String(repeating: "=", count: 50), color: .blue)
     }
 
     private func printDivider() {
-        Self.printColored(String(repeating: "-", count: 50), color: .blue)
+        logColored(String(repeating: "-", count: 50), color: .blue)
     }
 }

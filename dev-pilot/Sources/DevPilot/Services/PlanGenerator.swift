@@ -2,6 +2,12 @@ import Foundation
 
 struct PlanGenerator {
     let claudeService: ClaudeService
+    let logService: LogService?
+
+    init(claudeService: ClaudeService, logService: LogService? = nil) {
+        self.claudeService = claudeService
+        self.logService = logService
+    }
 
     enum Error: Swift.Error, LocalizedError {
         case noMatchingRepo(String)
@@ -21,25 +27,25 @@ struct PlanGenerator {
     }
 
     func generate(voiceText: String, repos: ReposConfig) async throws -> (URL, Repository) {
-        // Step 1: Match repo
+        log("Step 1/3: Matching repository...")
         let repoMatch: RepoMatch = try await matchRepo(voiceText: voiceText, repos: repos)
-        print("Matched repository: \(repoMatch.repoId)")
-        print("Interpreted request: \(repoMatch.interpretedRequest)")
+        log("Matched repository: \(repoMatch.repoId)")
+        log("Interpreted request: \(repoMatch.interpretedRequest)")
 
         guard let repo = repos.repository(withId: repoMatch.repoId) else {
             throw Error.repoNotFound(repoMatch.repoId)
         }
 
-        // Step 2: Generate plan
+        log("Step 2/3: Generating implementation plan...")
         let plan: GeneratedPlan = try await generatePlan(
             interpretedRequest: repoMatch.interpretedRequest,
             repo: repo
         )
-        print("Generated plan: \(plan.filename)")
+        log("Generated plan: \(plan.filename)")
 
-        // Step 3: Write the file
+        log("Step 3/3: Writing plan to disk...")
         let planURL = try writePlan(plan, repo: repo)
-        print("Plan written to: \(planURL.path)")
+        log("Plan written to: \(planURL.path)")
 
         return (planURL, repo)
     }
@@ -70,7 +76,7 @@ struct PlanGenerator {
         {"type":"object","properties":{"repoId":{"type":"string","description":"The id of the matched repository"},"interpretedRequest":{"type":"string","description":"The corrected/interpreted version of the voice request"}},"required":["repoId","interpretedRequest"]}
         """
 
-        return try await claudeService.call(prompt: prompt, jsonSchema: schema)
+        return try await claudeService.call(prompt: prompt, jsonSchema: schema, logService: logService, needsTools: false)
     }
 
     private func generatePlan(interpretedRequest: String, repo: Repository) async throws -> GeneratedPlan {
@@ -124,7 +130,9 @@ struct PlanGenerator {
         return try await claudeService.call(
             prompt: prompt,
             jsonSchema: schema,
-            workingDirectory: URL(fileURLWithPath: repo.path)
+            workingDirectory: URL(fileURLWithPath: repo.path),
+            logService: logService,
+            needsTools: false
         )
     }
 
@@ -152,5 +160,13 @@ struct PlanGenerator {
         }
 
         return fileURL
+    }
+
+    private func log(_ message: String) {
+        if let logService {
+            logService.log(message)
+        } else {
+            print(message)
+        }
     }
 }
