@@ -81,7 +81,8 @@ struct PhaseExecutor {
                     phaseIndex: nextIndex,
                     description: phase.description,
                     repoPath: repoPath,
-                    repository: repository
+                    repository: repository,
+                    onStatusUpdate: { timer.setStatusLine($0) }
                 )
             } catch {
                 timer.stop()
@@ -187,7 +188,8 @@ struct PhaseExecutor {
         phaseIndex: Int,
         description: String,
         repoPath: URL?,
-        repository: Repository?
+        repository: Repository?,
+        onStatusUpdate: ((String) -> Void)? = nil
     ) async throws -> PhaseResult {
         var ghInstructions = "\nWhen creating pull requests, ALWAYS use `gh pr create --draft`."
         if let githubUser = repository?.githubUser {
@@ -214,7 +216,8 @@ struct PhaseExecutor {
             jsonSchema: Self.executionSchema,
             workingDirectory: repoPath,
             logService: logService,
-            silent: true
+            silent: true,
+            onStatusUpdate: onStatusUpdate
         )
     }
 

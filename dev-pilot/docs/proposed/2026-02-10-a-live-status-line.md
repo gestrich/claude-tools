@@ -31,12 +31,13 @@ The approach: reserve the bottom **two** terminal lines instead of one. Row `hei
   - Add an `onStatusUpdate` closure parameter to `ClaudeService.call()` (defaulting to nil)
 - **Completed**: `StreamParser` stores `onStatusUpdate` closure and invokes it from `processLine()` for both text and tool_use blocks, independent of `silent` mode. The `guard !silent` was replaced with conditional `if !silent` blocks around console/log output, so status updates flow even when output is suppressed. Text blocks extract the last non-empty line via `split(separator:omittingEmptySubsequences:)`. All existing call sites remain unchanged since the new parameter defaults to nil.
 
-## - [ ] Phase 3: Wire PhaseExecutor to pass the timer's status updater
+## - [x] Phase 3: Wire PhaseExecutor to pass the timer's status updater
 
 - In `Sources/DevPilot/Services/PhaseExecutor.swift`:
   - Store the `TimerDisplay` instance as a property (or pass it into `executePhase`)
   - When calling `claudeService.call()` for phase execution, pass `onStatusUpdate: { timer.setStatusLine($0) }`
   - Keep status calls (getPhaseStatus) without a status updater since those are quick
+- **Completed**: Added `onStatusUpdate` parameter to `executePhase()` (defaulting to nil) and passed it through to `claudeService.call()`. At the call site in `execute()`, the timer's `setStatusLine` is wired in via `onStatusUpdate: { timer.setStatusLine($0) }`. The `getPhaseStatus` calls remain without a status updater since they are quick status checks.
 
 ## - [ ] Phase 4: Validation
 
