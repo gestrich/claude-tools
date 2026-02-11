@@ -4,7 +4,6 @@ set -e
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Build the project if needed
 if [ ! -f "$SCRIPT_DIR/.build/release/dev-pilot" ]; then
@@ -22,29 +21,13 @@ for arg in "$@"; do
     fi
 done
 
-# Check if --config is already provided
-HAS_CONFIG=false
-for arg in "$@"; do
-    if [[ "$arg" == "--config" ]]; then
-        HAS_CONFIG=true
-        break
-    fi
-done
-
-# If no recognized subcommand, default to "plan" with all args as the voice text
+# If no recognized subcommand: no args → execute, voice text → plan
 if [[ "$SUBCOMMAND" != "plan" && "$SUBCOMMAND" != "execute" ]]; then
-    CONFIG_ARGS=()
-    if [ "$HAS_CONFIG" = false ] && [ -f "$PROJECT_ROOT/repos.json" ]; then
-        CONFIG_ARGS=(--config "$PROJECT_ROOT/repos.json")
-    fi
-    exec "$SCRIPT_DIR/.build/release/dev-pilot" plan "${CONFIG_ARGS[@]}" "$@"
-else
-    if [ "$HAS_CONFIG" = false ] && [ -f "$PROJECT_ROOT/repos.json" ]; then
-        # Insert --config after the subcommand
-        FIRST_ARG="$1"
-        shift
-        exec "$SCRIPT_DIR/.build/release/dev-pilot" "$FIRST_ARG" --config "$PROJECT_ROOT/repos.json" "$@"
+    if [ $# -eq 0 ]; then
+        exec "$SCRIPT_DIR/.build/release/dev-pilot" execute "$@"
     else
-        exec "$SCRIPT_DIR/.build/release/dev-pilot" "$@"
+        exec "$SCRIPT_DIR/.build/release/dev-pilot" plan --execute "$@"
     fi
+else
+    exec "$SCRIPT_DIR/.build/release/dev-pilot" "$@"
 fi

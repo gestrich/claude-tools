@@ -23,7 +23,7 @@ struct PhaseExecutor {
         }
     }
 
-    func execute(planPath: URL, repoPath: URL?, maxMinutes: Int, worktreeService: WorktreeService? = nil) async throws {
+    func execute(planPath: URL, repoPath: URL?, maxMinutes: Int, repository: Repository? = nil, worktreeService: WorktreeService? = nil) async throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: planPath.path) else {
             throw Error.planNotFound(planPath.path)
@@ -31,9 +31,12 @@ struct PhaseExecutor {
 
         let maxRuntimeSeconds = maxMinutes * 60
         let scriptStart = Date()
-        let timer = TimerDisplay(maxRuntimeSeconds: maxRuntimeSeconds, scriptStartTime: scriptStart)
 
         printHeader(planPath: planPath, maxRuntimeSeconds: maxRuntimeSeconds)
+
+        if let githubUser = repository?.githubUser, let repoPath {
+            switchGitHubUser(githubUser, repoPath: repoPath)
+        }
 
         logColored("Fetching phase information...", color: .cyan)
         var statusResponse: PhaseStatusResponse = try await getPhaseStatus(planPath: planPath, repoPath: repoPath)
@@ -74,7 +77,7 @@ struct PhaseExecutor {
                     phaseIndex: nextIndex,
                     description: phase.description,
                     repoPath: repoPath,
-                    timer: timer
+                    repository: repository
                 )
 
                 let phaseElapsed = Int(Date().timeIntervalSince(phaseStart))
@@ -128,8 +131,11 @@ struct PhaseExecutor {
         log("")
 
         if nextIndex == -1 {
-            moveToCompleted(planPath: planPath)
             playCompletionSound()
+
+            if let repoPath = repoPath {
+                openPullRequest(repoPath: repoPath, githubUser: repository?.githubUser)
+            }
 
             if let worktreeService = worktreeService, let repoPath = repoPath {
                 log("")
@@ -173,8 +179,13 @@ struct PhaseExecutor {
         phaseIndex: Int,
         description: String,
         repoPath: URL?,
-        timer: TimerDisplay
+        repository: Repository?
     ) async throws -> PhaseResult {
+        var ghInstructions = "\nWhen creating pull requests, ALWAYS use `gh pr create --draft`."
+        if let githubUser = repository?.githubUser {
+            ghInstructions += "\nBefore running any `gh` commands, first run `gh auth switch -u \(githubUser)`."
+        }
+
         let prompt = """
         Look at \(planPath.path) for background.
 
@@ -185,12 +196,10 @@ struct PhaseExecutor {
         2. Ensuring the build succeeds
         3. Updating the markdown document to mark this phase as completed with any relevant technical notes
         4. Committing your changes
+        \(ghInstructions)
 
         Return success: true if the phase was completed successfully, false otherwise.
         """
-
-        timer.start()
-        defer { timer.stop() }
 
         return try await claudeService.call(
             prompt: prompt,
@@ -202,91 +211,101 @@ struct PhaseExecutor {
 
     // MARK: - Interactive Plan Selection
 
-    static func selectPlanningDoc(proposedDir: String = "docs/proposed") -> URL? {
-        let fm = FileManager.default
-        guard fm.fileExists(atPath: proposedDir) else {
-            Self.printColoredStatic("Error: Directory not found: \(proposedDir)", color: .red)
-            return nil
-        }
+    static func selectPlanningDoc() -> URL? {
+        let jobs = JobDirectory.list()
 
-        let dirURL = URL(fileURLWithPath: proposedDir)
-        guard let contents = try? fm.contentsOfDirectory(
-            at: dirURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            Self.printColoredStatic("Error: Could not read \(proposedDir)", color: .red)
-            return nil
-        }
+        let sorted = Array(jobs.sorted { a, b in
+            let aDate = (try? a.planURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let bDate = (try? b.planURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return aDate > bDate
+        }.prefix(5))
 
-        let mdFiles = Array(contents
-            .filter { $0.pathExtension == "md" }
-            .sorted { a, b in
-                let aDate = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let bDate = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return aDate > bDate
-            }
-            .prefix(5))
-
-        guard !mdFiles.isEmpty else {
-            Self.printColoredStatic("Error: No .md files found in \(proposedDir)", color: .red)
+        guard !sorted.isEmpty else {
+            Self.printColoredStatic("No plans found in \(JobDirectory.baseURL.path)", color: .red)
             return nil
         }
 
         Self.printColoredStatic("No planning document specified.", color: .blue)
-        print("Last \(ANSIColor.green.rawValue)\(mdFiles.count)\(ANSIColor.reset.rawValue) modified files in \(ANSIColor.green.rawValue)\(proposedDir)\(ANSIColor.reset.rawValue):\n")
+        print("Recent jobs:\n")
 
-        for (i, file) in mdFiles.enumerated() {
-            print("  \(ANSIColor.yellow.rawValue)\(i + 1)\(ANSIColor.reset.rawValue)) \(file.lastPathComponent)")
+        for (i, job) in sorted.enumerated() {
+            let components = job.url.pathComponents
+            let baseCount = JobDirectory.baseURL.pathComponents.count
+            if components.count >= baseCount + 2 {
+                let repoId = components[baseCount]
+                let jobName = components[baseCount + 1]
+                print("  \(ANSIColor.yellow.rawValue)\(i + 1)\(ANSIColor.reset.rawValue)) [\(ANSIColor.cyan.rawValue)\(repoId)\(ANSIColor.reset.rawValue)] \(jobName)")
+            }
         }
 
         print()
-        Swift.print("Select a file to implement [1-\(mdFiles.count)] (default: 1): ", terminator: "")
+        Swift.print("Select a job to execute [1-\(sorted.count)] (default: 1): ", terminator: "")
 
         let input = readLine()?.trimmingCharacters(in: .whitespaces) ?? "1"
         let selection = input.isEmpty ? "1" : input
 
-        guard let idx = Int(selection), idx >= 1, idx <= mdFiles.count else {
+        guard let idx = Int(selection), idx >= 1, idx <= sorted.count else {
             Self.printColoredStatic("Invalid selection.", color: .red)
             return nil
         }
 
-        return mdFiles[idx - 1]
+        return sorted[idx - 1].planURL
     }
 
     // MARK: - Completion Handling
 
-    private func moveToCompleted(planPath: URL) {
-        let fm = FileManager.default
-        let completedDir = planPath.deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("completed")
+    private func openPullRequest(repoPath: URL, githubUser: String?) {
+        if let githubUser {
+            switchGitHubUser(githubUser, repoPath: repoPath)
+        }
+
+        let gh = Process()
+        gh.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        gh.arguments = ["gh", "pr", "view", "--json", "url", "-q", ".url"]
+        gh.currentDirectoryURL = repoPath
+        let pipe = Pipe()
+        gh.standardOutput = pipe
+        gh.standardError = FileHandle.nullDevice
 
         do {
-            if !fm.fileExists(atPath: completedDir.path) {
-                try fm.createDirectory(at: completedDir, withIntermediateDirectories: true)
+            try gh.run()
+            gh.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let urlString = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !urlString.isEmpty else {
+                logColored("No pull request found to open", color: .yellow)
+                return
             }
 
-            let destPath = completedDir.appendingPathComponent(planPath.lastPathComponent)
-            try fm.moveItem(at: planPath, to: destPath)
-            logColored("Moved spec to \(destPath.path)", color: .green)
-
-            let gitAdd = Process()
-            gitAdd.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            gitAdd.arguments = ["git", "add", planPath.path, destPath.path]
-            try gitAdd.run()
-            gitAdd.waitUntilExit()
-
-            let gitCommit = Process()
-            gitCommit.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            gitCommit.arguments = ["git", "commit", "-m", "Move completed spec to docs/completed"]
-            try gitCommit.run()
-            gitCommit.waitUntilExit()
-
-            logColored("Committed spec move", color: .green)
-            log("")
+            logColored("Opening PR: \(urlString)", color: .green)
+            let open = Process()
+            open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            open.arguments = [urlString]
+            try open.run()
+            open.waitUntilExit()
         } catch {
-            logColored("Could not move spec: \(error.localizedDescription)", color: .yellow)
+            logColored("Could not open PR: \(error.localizedDescription)", color: .yellow)
+        }
+    }
+
+    private func switchGitHubUser(_ user: String, repoPath: URL) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["gh", "auth", "switch", "-u", user]
+        process.currentDirectoryURL = repoPath
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            if process.terminationStatus == 0 {
+                logColored("Switched to GitHub user: \(user)", color: .cyan)
+            } else {
+                logColored("Warning: Could not switch to GitHub user '\(user)'", color: .yellow)
+            }
+        } catch {
+            logColored("Warning: Could not switch to GitHub user '\(user)': \(error.localizedDescription)", color: .yellow)
         }
     }
 

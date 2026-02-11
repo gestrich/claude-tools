@@ -22,9 +22,9 @@ struct ReposConfig: Codable {
         if let path {
             configPath = path
         } else {
-            // Default: ~/.dev-pilot/repos.json
+            // Default: ~/Desktop/dev-pilot/repos.json
             let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-            configPath = (homeDir as NSString).appendingPathComponent(".dev-pilot/repos.json")
+            configPath = (homeDir as NSString).appendingPathComponent("Desktop/dev-pilot/repos.json")
         }
 
         guard FileManager.default.fileExists(atPath: configPath) else {
@@ -61,6 +61,7 @@ struct Repository: Codable {
     let architectureDocs: [String]
     let verification: Verification
     let pullRequest: PullRequestConfig
+    let githubUser: String?
 }
 
 struct Verification: Codable {

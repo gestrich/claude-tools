@@ -16,26 +16,20 @@ struct Plan: AsyncParsableCommand {
     var config: String?
 
     func run() async throws {
-        let label = "plan-" + String(
-            text.prefix(40)
-                .lowercased()
-                .replacingOccurrences(of: " ", with: "-")
-                .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        )
-        let logService = try LogService(label: label)
-
         let repos = try ReposConfig.load(from: config)
-        logService.log("Loaded \(repos.repositories.count) repositories from config")
+
+        let generator = PlanGenerator(claudeService: ClaudeService())
+        let (jobDir, matchedRepo) = try await generator.generate(voiceText: text, repos: repos)
+
+        let logService = try LogService(directory: jobDir.url, label: "plan")
         logService.log("Voice text: \(text)")
-
-        let generator = PlanGenerator(claudeService: ClaudeService(), logService: logService)
-        let (planURL, matchedRepo) = try await generator.generate(voiceText: text, repos: repos)
-
+        logService.log("Matched repo: \(matchedRepo.id)")
+        logService.log("Plan: \(jobDir.planURL.path)")
         logService.log("Log file: \(logService.logFileURL.path)")
 
         if execute {
             logService.log("\nStarting execution...")
-            var args = ["--plan", planURL.path, "--repo", matchedRepo.path]
+            var args = ["--plan", jobDir.planURL.path]
             if let config = config {
                 args += ["--config", config]
             }

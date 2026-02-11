@@ -9,7 +9,7 @@ struct Execute: AsyncParsableCommand {
     @Option(help: "Path to planning document")
     var plan: String?
 
-    @Option(help: "Path to target repository (sets working directory)")
+    @Option(help: "Path to target repository (auto-detected from plan path if omitted)")
     var repo: String?
 
     @Option(help: "Maximum runtime in minutes")
@@ -30,50 +30,43 @@ struct Execute: AsyncParsableCommand {
             planURL = selected
         }
 
-        guard let repo else {
-            throw ValidationError("--repo is required for execution")
+        let repos = try ReposConfig.load(from: config)
+        let jobDir = planURL.deletingLastPathComponent()
+
+        let mainRepoURL: URL
+        if let repo {
+            mainRepoURL = URL(fileURLWithPath: (repo as NSString).standardizingPath)
+        } else if let repoId = JobDirectory.deriveRepoId(from: planURL),
+                  let repoConfig = repos.repository(withId: repoId) {
+            mainRepoURL = URL(fileURLWithPath: repoConfig.path)
+        } else {
+            throw ValidationError("Cannot determine repository. Use --repo or ensure plan is in ~/Desktop/dev-pilot/<repo-id>/<job-name>/plan.md")
         }
 
-        let mainRepoURL = URL(fileURLWithPath: (repo as NSString).standardizingPath)
-
-        let planFilename = planURL.deletingPathExtension().lastPathComponent
-        let logService = try LogService(label: "execute-\(planFilename)")
+        let logService = try LogService(directory: jobDir, label: "execute")
         logService.log("dev-pilot execute started")
         logService.log("Plan: \(planURL.path)")
         logService.log("Repo: \(mainRepoURL.path)")
-
-        let repos = try ReposConfig.load(from: config)
 
         guard let repoConfig = repos.repositories.first(where: { $0.path == mainRepoURL.path }) else {
             throw ValidationError("Repository at \(mainRepoURL.path) not found in repos.json")
         }
 
         let worktreeService = WorktreeService(logService: logService)
+        let worktreeDestination = JobDirectory(url: jobDir).worktreeURL
         let worktreeURL = try worktreeService.createWorktree(
             repoPath: mainRepoURL,
-            baseBranch: repoConfig.pullRequest.baseBranch
+            baseBranch: repoConfig.pullRequest.baseBranch,
+            destination: worktreeDestination
         )
-
-        // Copy plan file into the worktree so Claude reads/writes from one location
-        let worktreePlanURL: URL
-        let relativePlanPath = planURL.path.replacingOccurrences(of: mainRepoURL.path + "/", with: "")
-        if relativePlanPath != planURL.path {
-            let destURL = worktreeURL.appendingPathComponent(relativePlanPath)
-            let fm = FileManager.default
-            try fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try fm.copyItem(at: planURL, to: destURL)
-            worktreePlanURL = destURL
-            logService.log("Copied plan to worktree: \(destURL.path)")
-        } else {
-            worktreePlanURL = planURL
-        }
 
         let executor = PhaseExecutor(claudeService: ClaudeService(), logService: logService)
         do {
             try await executor.execute(
-                planPath: worktreePlanURL,
+                planPath: planURL,
                 repoPath: worktreeURL,
                 maxMinutes: maxMinutes,
+                repository: repoConfig,
                 worktreeService: worktreeService
             )
         } catch {

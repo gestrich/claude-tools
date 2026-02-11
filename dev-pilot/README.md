@@ -9,8 +9,9 @@ DevPilot enables hands-free development workflow:
 1. **Speak** your development task into an iPhone (via Apple Shortcut)
 2. **Transcribe** the audio to text using on-device transcription
 3. **SSH** the text to your Mac where DevPilot processes it
-4. **Generate** a phased implementation plan using Claude AI
-5. **Execute** the plan step-by-step, calling Claude for each phase
+4. **Match** the request to the correct repository using Claude AI (comparing against repo descriptions and recent focus areas in `repos.json`, while correcting likely transcription errors)
+5. **Generate** a phased implementation plan using Claude AI
+6. **Execute** the plan step-by-step, calling Claude for each phase
 
 The system is designed to be tolerant of voice transcription errors by using recent commit history and codebase context to infer intent.
 
@@ -24,9 +25,9 @@ Takes voice-transcribed text and generates a structured markdown plan with three
 
 - **Phase 1: Interpret the Request** - Explores codebase and recent commits to understand what's being asked
 - **Phase 2: Gather Architectural Guidance** - Reviews relevant skills and architecture docs from repo config
-- **Phase 3: Plan the Implementation** - Creates concrete implementation steps and dynamically generates additional phases (4 through N)
+- **Phase 3: Plan the Implementation** - Creates concrete implementation steps and dynamically generates additional phases (4 through N), scaled to match the request size (1-2 phases for small changes, up to 10 for large features)
 
-Generated plans are saved to `docs/proposed/<filename>.md` in the target repository.
+Generated plans are saved to `~/Desktop/dev-pilot/<repo-id>/<job-name>/plan.md`.
 
 ### `execute` - Run Implementation Phases
 
@@ -36,7 +37,7 @@ Executes phases from a planning document one-by-one:
 - Displays live timer (phase + total runtime)
 - Enforces maximum runtime limit
 - Re-reads phase status after each step (supports dynamic phase generation)
-- Moves completed plans to `docs/completed/`
+- Opens the PR in the browser on completion
 
 ## Installation
 
@@ -71,14 +72,14 @@ dev-pilot plan "Fix the bug where waypoints disappear after saving"
 # Generate and immediately execute (repo auto-detected)
 dev-pilot plan --execute "Add a logout button to the settings page"
 
-# Execute an existing plan with repo path
-dev-pilot execute --plan docs/proposed/waypoint-fix.md --repo /path/to/repo
+# Execute an existing plan (repo auto-detected from plan path)
+dev-pilot execute --plan ~/Desktop/dev-pilot/my-ios-app/waypoint-fix/plan.md
 
-# Execute with custom time limit
-dev-pilot execute --plan docs/proposed/feature.md --repo /path/to/repo --max-minutes 120
+# Execute with explicit repo and custom time limit
+dev-pilot execute --plan ~/Desktop/dev-pilot/my-ios-app/feature/plan.md --repo /path/to/repo --max-minutes 120
 ```
 
-**Note:** Execution requires the `--repo` parameter pointing to your main repository. When using `plan --execute`, this is automatically determined. A worktree will be created in `~/Desktop/worktrees/<repo-name>/` for isolated work.
+**Note:** When using `plan --execute`, the repository is automatically determined. When using `execute` standalone, the repository is auto-detected from the plan path (which follows the `~/Desktop/dev-pilot/<repo-id>/<job-name>/` structure). You can override with `--repo` if needed.
 
 ### Repository Configuration
 
@@ -145,30 +146,40 @@ The voice entry point is `voice-plan.sh` in the project root:
 
 ## How It Works
 
+### Job Directory Structure
+
+All artifacts for a job are colocated in a single directory:
+
+```
+~/Desktop/dev-pilot/
+  <repo-id>/
+    <job-name>/
+      plan.md          # The implementation plan
+      plan.log          # Log from plan generation
+      execute.log       # Log from execution
+      worktree/         # Git worktree (temporary, deleted after run)
+```
+
+This ensures all artifacts for a given task are easy to find and inspect.
+
 ### Worktree Isolation
 
-DevPilot uses git worktrees to isolate each implementation from your main repository:
+DevPilot uses git worktrees inside each job directory to isolate implementations:
 
-1. **Worktree Creation** - Before execution begins, a new worktree is created in `~/Desktop/worktrees/<repo-name>/<timestamp>`
+1. **Worktree Creation** - Before execution begins, a worktree is created at `<job-dir>/worktree/`
 2. **Base Branch** - The worktree is based on the `baseBranch` specified in your `repos.json` config (e.g., `main`, `develop`)
 3. **Isolated Work** - All implementation happens in the worktree, keeping your main repository clean
-4. **Automatic Cleanup** - After the PR is created, the worktree is automatically removed
-
-This ensures that:
-- Multiple implementations can run simultaneously without conflicts
-- Your main working directory remains untouched
-- Each task starts from a clean state based on the latest default branch
-- Failed implementations don't leave your repository in a dirty state
+4. **Automatic Cleanup** - After the PR is created, the worktree is removed (plan and logs remain)
 
 ### Phase Execution Flow
 
 1. **Plan Generation**
    - Voice text is matched to a repository based on description and recent focus
    - Claude interprets the request (handling transcription errors)
-   - A structured plan with 3 initial phases is generated
+   - A job directory is created and the plan is saved there
 
 2. **Worktree Setup**
-   - A git worktree is created in `~/Desktop/worktrees/<repo-name>/`
+   - A git worktree is created inside the job directory
    - Based on the repository's default branch (from `repos.json`)
    - All subsequent work happens in this isolated environment
 
@@ -184,9 +195,9 @@ This ensures that:
    - The executor re-reads the document after each phase
    - Newly added phases are automatically discovered and executed
 
-5. **Cleanup**
-   - After successful completion, the worktree is removed
-   - On failure, the worktree is also cleaned up to prevent disk clutter
+5. **Completion**
+   - The PR is opened in the browser
+   - The worktree is removed (plan and logs remain in the job directory)
 
 ### Repository Context
 
@@ -222,20 +233,20 @@ Execute phases from a planning document.
 
 **Options:**
 - `--plan <path>` - Path to planning document (omit for interactive selection)
-- `--repo <path>` - Path to main repository (required, used to create worktree)
+- `--repo <path>` - Path to main repository (auto-detected from plan path if omitted)
 - `--max-minutes <int>` - Maximum runtime in minutes (default: 90)
 - `--config <path>` - Path to repos.json config file (default: ~/.dev-pilot/repos.json)
-
-**Note:** The `--repo` option is required and should point to your main repository. A worktree will be automatically created based on this repository and the `baseBranch` from `repos.json`.
 
 **Examples:**
 ```bash
 # When using plan --execute, the repo is automatically determined
 dev-pilot plan --execute "Add feature"
 
-# When executing manually, provide the main repo path
-dev-pilot execute --plan docs/proposed/feature.md --repo /path/to/main/repo
-dev-pilot execute --plan docs/proposed/feature.md --repo /path/to/main/repo --max-minutes 120
+# When executing manually (repo auto-detected from plan path)
+dev-pilot execute --plan ~/Desktop/dev-pilot/my-app/feature/plan.md
+
+# With explicit repo override
+dev-pilot execute --plan ~/Desktop/dev-pilot/my-app/feature/plan.md --repo /path/to/repo --max-minutes 120
 ```
 
 ## Project Structure
@@ -254,8 +265,10 @@ cli/
 │   │   └── ClaudeResponse.swift    # Claude API response types
 │   └── Services/
 │       ├── ClaudeService.swift     # Claude CLI subprocess wrapper
+│       ├── JobDirectory.swift      # Job directory path logic
 │       ├── PlanGenerator.swift     # Plan generation logic
 │       ├── PhaseExecutor.swift     # Phase execution engine
+│       ├── WorktreeService.swift   # Git worktree management
 │       └── TimerDisplay.swift      # Live timer display
 └── Tests/DevPilotTests/            # Integration tests
 ```

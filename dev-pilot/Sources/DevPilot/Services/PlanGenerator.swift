@@ -26,7 +26,7 @@ struct PlanGenerator {
         }
     }
 
-    func generate(voiceText: String, repos: ReposConfig) async throws -> (URL, Repository) {
+    func generate(voiceText: String, repos: ReposConfig) async throws -> (JobDirectory, Repository) {
         log("Step 1/3: Matching repository...")
         let repoMatch: RepoMatch = try await matchRepo(voiceText: voiceText, repos: repos)
         log("Matched repository: \(repoMatch.repoId)")
@@ -44,10 +44,10 @@ struct PlanGenerator {
         log("Generated plan: \(plan.filename)")
 
         log("Step 3/3: Writing plan to disk...")
-        let planURL = try writePlan(plan, repo: repo)
-        log("Plan written to: \(planURL.path)")
+        let jobDir = try writePlan(plan, repoId: repo.id)
+        log("Plan written to: \(jobDir.planURL.path)")
 
-        return (planURL, repo)
+        return (jobDir, repo)
     }
 
     private func matchRepo(voiceText: String, repos: ReposConfig) async throws -> RepoMatch {
@@ -80,16 +80,20 @@ struct PlanGenerator {
     }
 
     private func generatePlan(interpretedRequest: String, repo: Repository) async throws -> GeneratedPlan {
-        let repoContext = """
-        Repository: \(repo.id)
-        Path: \(repo.path)
-        Description: \(repo.description)
-        Skills: \(repo.skills.joined(separator: ", "))
-        Architecture docs: \(repo.architectureDocs.joined(separator: ", "))
-        Verification commands: \(repo.verification.commands.joined(separator: ", "))
-        PR base branch: \(repo.pullRequest.baseBranch)
-        Branch naming: \(repo.pullRequest.branchNamingConvention)
-        """
+        var repoContextLines = [
+            "Repository: \(repo.id)",
+            "Path: \(repo.path)",
+            "Description: \(repo.description)",
+            "Skills: \(repo.skills.joined(separator: ", "))",
+            "Architecture docs: \(repo.architectureDocs.joined(separator: ", "))",
+            "Verification commands: \(repo.verification.commands.joined(separator: ", "))",
+            "PR base branch: \(repo.pullRequest.baseBranch)",
+            "Branch naming: \(repo.pullRequest.branchNamingConvention)",
+        ]
+        if let githubUser = repo.githubUser {
+            repoContextLines.append("GitHub user: \(githubUser) (switch with `gh auth switch -u \(githubUser)` before any gh commands)")
+        }
+        let repoContext = repoContextLines.joined(separator: "\n")
 
         let prompt = """
         You are generating a phased implementation plan document. You are ONLY generating the plan skeleton — do NOT execute, explore, or implement anything.
@@ -112,7 +116,12 @@ struct PlanGenerator {
         When executed, this phase will look at the repository's skills (\(repo.skills.joined(separator: ", "))) and architecture docs (\(repo.architectureDocs.joined(separator: ", "))) to identify which documentation and architectural guidelines are relevant to this request. It will read and summarize the key constraints. Document findings underneath this phase heading.
 
         ## - [ ] Phase 3: Plan the Implementation
-        When executed, this phase will use insights from Phases 1 and 2 to create concrete implementation steps. It will append new phases (Phase 4 through N) to this document, each with: what to implement, which files to modify, which architectural documents to reference, and acceptance criteria. It will also append a Testing/Verification phase and a Create Pull Request phase at the end. This phase is responsible for generating the remaining phases dynamically.
+        When executed, this phase will use insights from Phases 1 and 2 to create concrete implementation steps. It will append new phases (Phase 4 through N) to this document, each with: what to implement, which files to modify, which architectural documents to reference, and acceptance criteria. It will also append a Testing/Verification phase and a Create Pull Request phase at the end. The Create Pull Request phase MUST always use `gh pr create --draft` (all PRs are drafts).\(repo.githubUser.map { " Before any `gh` commands, run `gh auth switch -u \($0)`." } ?? "") This phase is responsible for generating the remaining phases dynamically.
+
+        CRITICAL scope and sizing rules for Phase 3:
+        - Stay focused on exactly what was requested. Do not expand scope, refactor surrounding code, or make unrelated improvements.
+        - Follow a "do no harm" principle: do not restructure or rewrite existing code that already works. New code should follow good architecture and introduce new paradigms where needed, but existing code should be left alone unless it is directly required by the request.
+        - Scale the number of implementation phases to match the size of the request. A small change may need only 1-2 implementation phases. A large feature may need up to 10. Never exceed 10 implementation phases (excluding the Testing/Verification and Create Pull Request phases).
 
         No Phase 4+ should be included — Phase 3 will generate them when executed.
 
@@ -136,30 +145,25 @@ struct PlanGenerator {
         )
     }
 
-    private func writePlan(_ plan: GeneratedPlan, repo: Repository) throws -> URL {
-        let docsDir = URL(fileURLWithPath: repo.path)
-            .appendingPathComponent("docs")
-            .appendingPathComponent("proposed")
+    private func writePlan(_ plan: GeneratedPlan, repoId: String) throws -> JobDirectory {
+        let jobName = plan.filename.hasSuffix(".md")
+            ? String(plan.filename.dropLast(3))
+            : plan.filename
 
-        let fm = FileManager.default
-        if !fm.fileExists(atPath: docsDir.path) {
-            do {
-                try fm.createDirectory(at: docsDir, withIntermediateDirectories: true)
-            } catch {
-                throw Error.writeError("Could not create docs/proposed/ directory: \(error.localizedDescription)")
-            }
+        let jobDir: JobDirectory
+        do {
+            jobDir = try JobDirectory.create(repoId: repoId, jobName: jobName)
+        } catch {
+            throw Error.writeError("Could not create job directory: \(error.localizedDescription)")
         }
 
-        let filename = plan.filename.hasSuffix(".md") ? plan.filename : "\(plan.filename).md"
-        let fileURL = docsDir.appendingPathComponent(filename)
-
         do {
-            try plan.planContent.write(to: fileURL, atomically: true, encoding: .utf8)
+            try plan.planContent.write(to: jobDir.planURL, atomically: true, encoding: .utf8)
         } catch {
             throw Error.writeError("Could not write plan file: \(error.localizedDescription)")
         }
 
-        return fileURL
+        return jobDir
     }
 
     private func log(_ message: String) {

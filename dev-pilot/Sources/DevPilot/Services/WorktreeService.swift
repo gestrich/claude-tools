@@ -27,27 +27,12 @@ struct WorktreeService {
         }
     }
 
-    func createWorktree(repoPath: URL, baseBranch: String) throws -> URL {
+    func createWorktree(repoPath: URL, baseBranch: String, destination: URL) throws -> URL {
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: repoPath.path) else {
             throw Error.invalidRepoPath(repoPath.path)
         }
-
-        let repoName = repoPath.lastPathComponent
-        let timestamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-
-        let worktreesBase = fm.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop")
-            .appendingPathComponent("dev-pilot")
-            .appendingPathComponent("worktrees")
-            .appendingPathComponent(repoName)
-
-        if !fm.fileExists(atPath: worktreesBase.path) {
-            try? fm.createDirectory(at: worktreesBase, withIntermediateDirectories: true)
-        }
-
-        let worktreePath = worktreesBase.appendingPathComponent(timestamp)
 
         log("Fetching latest changes from remote...")
         do {
@@ -56,14 +41,14 @@ struct WorktreeService {
             log("Warning: Could not fetch from remote: \(error.localizedDescription)")
         }
 
-        log("Creating worktree at \(worktreePath.path)...")
+        log("Creating worktree at \(destination.path)...")
         try runGit(
-            ["worktree", "add", worktreePath.path, "origin/\(baseBranch)"],
+            ["worktree", "add", destination.path, "origin/\(baseBranch)"],
             workingDirectory: repoPath
         )
 
-        log("Worktree created successfully at \(worktreePath.path)")
-        return worktreePath
+        log("Worktree created successfully at \(destination.path)")
+        return destination
     }
 
     func removeWorktree(worktreePath: URL) throws {

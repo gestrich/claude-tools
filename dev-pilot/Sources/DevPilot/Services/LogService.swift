@@ -4,28 +4,14 @@ final class LogService {
     let logFileURL: URL
     private let fileHandle: FileHandle
 
-    init(label: String) throws {
+    init(directory: URL, label: String) throws {
         let fm = FileManager.default
-        let logsDir = fm.homeDirectoryForCurrentUser
-            .appendingPathComponent("Desktop")
-            .appendingPathComponent("dev-pilot")
-            .appendingPathComponent("logs")
-
-        if !fm.fileExists(atPath: logsDir.path) {
-            try fm.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: directory.path) {
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        let timestamp = formatter.string(from: Date())
-        let sanitizedLabel = String(
-            label.replacingOccurrences(of: " ", with: "-")
-                .filter { $0.isLetter || $0.isNumber || $0 == "-" }
-                .prefix(50)
-        )
-
-        let filename = "\(timestamp)_\(sanitizedLabel).log"
-        self.logFileURL = logsDir.appendingPathComponent(filename)
+        let filename = "\(label).log"
+        self.logFileURL = directory.appendingPathComponent(filename)
 
         fm.createFile(atPath: logFileURL.path, contents: nil)
         self.fileHandle = try FileHandle(forWritingTo: logFileURL)
