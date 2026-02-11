@@ -175,9 +175,8 @@ struct ClaudeService {
 
     private func findClaudePath() -> String {
         let possiblePaths = [
-            "/Users/bill/.local/bin/claude",
-            "/usr/local/bin/claude",
             (NSString(string: "~/.local/bin/claude").expandingTildeInPath),
+            "/usr/local/bin/claude",
             "claude"
         ]
 
