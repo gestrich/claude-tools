@@ -21,7 +21,7 @@ The approach: reserve the bottom **two** terminal lines instead of one. Row `hei
   - In `stop()`, clear both reserved lines and reset the scroll region
 - **Completed**: Status line rendered in yellow (`\e[0;33m`) on row height-1, timer on row height. Both lines written in a single `writeToStdout` call to minimize flicker. Guard changed from `height > 2` to `height > 3` to ensure enough room for the scroll region plus two reserved lines.
 
-## - [ ] Phase 2: Feed streaming output to TimerDisplay
+## - [x] Phase 2: Feed streaming output to TimerDisplay
 
 - In `Sources/DevPilot/Services/ClaudeService.swift`:
   - Add an optional `onStatusUpdate: ((String) -> Void)?` closure parameter to `StreamParser.init`
@@ -29,6 +29,7 @@ The approach: reserve the bottom **two** terminal lines instead of one. Row `hei
     - For `text` blocks: extract the last non-empty line and call `onStatusUpdate`
     - For `tool_use` blocks: call `onStatusUpdate` with `"[tool: <name>]"` (skip `StructuredOutput`)
   - Add an `onStatusUpdate` closure parameter to `ClaudeService.call()` (defaulting to nil)
+- **Completed**: `StreamParser` stores `onStatusUpdate` closure and invokes it from `processLine()` for both text and tool_use blocks, independent of `silent` mode. The `guard !silent` was replaced with conditional `if !silent` blocks around console/log output, so status updates flow even when output is suppressed. Text blocks extract the last non-empty line via `split(separator:omittingEmptySubsequences:)`. All existing call sites remain unchanged since the new parameter defaults to nil.
 
 ## - [ ] Phase 3: Wire PhaseExecutor to pass the timer's status updater
 

@@ -4,7 +4,7 @@ struct ClaudeService {
     enum Error: Swift.Error, LocalizedError {
         case nonZeroExit(Int32, stderr: String)
         case jsonParsingFailed(String)
-        case noStructuredOutput
+        case claudeError(result: StreamResult?, rawResultLine: String?)
 
         var errorDescription: String? {
             switch self {
@@ -12,8 +12,37 @@ struct ClaudeService {
                 return "Claude exited with code \(code): \(stderr)"
             case .jsonParsingFailed(let detail):
                 return "Failed to parse Claude JSON output: \(detail)"
-            case .noStructuredOutput:
-                return "Claude response contained no structured_output"
+            case .claudeError(let result, let rawResultLine):
+                guard let result else {
+                    if let rawResultLine {
+                        return "Claude failed: could not decode result event\n  Raw: \(rawResultLine)"
+                    }
+                    return "Claude failed: no result event received"
+                }
+                let turns = result.numTurns ?? 0
+                let cost = result.totalCostUsd ?? 0
+                let durationSec = (result.durationMs ?? 0) / 1000
+                let reason: String
+                switch result.subtype {
+                case "error_max_turns":
+                    reason = "Hit turn limit (\(turns) turns)"
+                case "error_during_execution":
+                    reason = "Error during execution"
+                case "error_max_budget_usd":
+                    reason = "Budget exceeded ($\(String(format: "%.2f", cost)))"
+                case "error_max_structured_output_retries":
+                    reason = "Failed to produce valid structured output after retries"
+                case "success":
+                    reason = "No structured_output in successful result"
+                default:
+                    reason = result.subtype ?? "unknown"
+                }
+                var msg = "Claude failed: \(reason)"
+                msg += " | \(turns) turns, $\(String(format: "%.2f", cost)), \(durationSec)s"
+                if let errors = result.errors, !errors.isEmpty {
+                    msg += "\n  Errors: \(errors.joined(separator: "; "))"
+                }
+                return msg
             }
         }
     }
@@ -24,7 +53,8 @@ struct ClaudeService {
         workingDirectory: URL? = nil,
         logService: LogService? = nil,
         needsTools: Bool = true,
-        silent: Bool = false
+        silent: Bool = false,
+        onStatusUpdate: ((String) -> Void)? = nil
     ) async throws -> T {
         let claudePath = findClaudePath()
 
@@ -64,7 +94,7 @@ struct ClaudeService {
         process.standardError = stderrPipe
 
         // Stream stdout line-by-line (stream-json emits one JSON event per line)
-        let streamParser = StreamParser(silent: silent)
+        let streamParser = StreamParser(silent: silent, onStatusUpdate: onStatusUpdate)
 
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
@@ -110,8 +140,14 @@ struct ClaudeService {
             throw Error.nonZeroExit(process.terminationStatus, stderr: stderrString)
         }
 
+        let result = streamParser.streamResult
+        let rawLine = streamParser.rawResultLine
+        if result?.isError == true {
+            throw Error.claudeError(result: result, rawResultLine: rawLine)
+        }
+
         guard let structuredOutput = streamParser.structuredOutput else {
-            throw Error.noStructuredOutput
+            throw Error.claudeError(result: result, rawResultLine: rawLine)
         }
 
         let outputData = try JSONSerialization.data(withJSONObject: structuredOutput)
@@ -143,24 +179,58 @@ struct ClaudeService {
     }
 }
 
-/// Parses stream-json events from Claude CLI stdout.
-/// Each line is a JSON object with a "type" field.
-/// Streams assistant text content to the log/console.
-/// Captures structured_output from the final "result" event.
+struct StreamResult: Decodable {
+    let subtype: String?
+    let isError: Bool
+    let errors: [String]?
+    let numTurns: Int?
+    let totalCostUsd: Double?
+    let durationMs: Int?
+    let sessionId: String?
+    let result: String?
+
+    enum CodingKeys: String, CodingKey {
+        case subtype
+        case isError = "is_error"
+        case errors
+        case numTurns = "num_turns"
+        case totalCostUsd = "total_cost_usd"
+        case durationMs = "duration_ms"
+        case sessionId = "session_id"
+        case result
+    }
+}
+
 private final class StreamParser: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = ""
     private var _structuredOutput: Any?
+    private var _streamResult: StreamResult?
+    private var _rawResultLine: String?
     private let silent: Bool
+    private let onStatusUpdate: ((String) -> Void)?
 
-    init(silent: Bool = false) {
+    init(silent: Bool = false, onStatusUpdate: ((String) -> Void)? = nil) {
         self.silent = silent
+        self.onStatusUpdate = onStatusUpdate
     }
 
     var structuredOutput: Any? {
         lock.lock()
         defer { lock.unlock() }
         return _structuredOutput
+    }
+
+    var streamResult: StreamResult? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _streamResult
+    }
+
+    var rawResultLine: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return _rawResultLine
     }
 
     func feed(_ data: Data, logService: LogService?) {
@@ -189,25 +259,35 @@ private final class StreamParser: @unchecked Sendable {
 
         switch type {
         case "assistant":
-            guard !silent else { break }
             if let message = json["message"] as? [String: Any],
                let content = message["content"] as? [[String: Any]] {
                 for block in content {
                     if let blockType = block["type"] as? String {
                         if blockType == "text", let text = block["text"] as? String {
-                            if let logService {
-                                logService.writeRaw(Data((text).utf8))
-                            } else {
-                                Swift.print(text, terminator: "")
+                            if !silent {
+                                if let logService {
+                                    logService.writeRaw(Data((text).utf8))
+                                } else {
+                                    Swift.print(text, terminator: "")
+                                }
+                            }
+                            if let onStatusUpdate {
+                                let lastLine = text.split(separator: "\n", omittingEmptySubsequences: true).last.map(String.init)
+                                if let lastLine, !lastLine.isEmpty {
+                                    onStatusUpdate(lastLine)
+                                }
                             }
                         } else if blockType == "tool_use", let name = block["name"] as? String {
                             if name != "StructuredOutput" {
-                                let msg = "[tool: \(name)]\n"
-                                if let logService {
-                                    logService.writeRaw(Data(msg.utf8))
-                                } else {
-                                    Swift.print(msg, terminator: "")
+                                if !silent {
+                                    let msg = "[tool: \(name)]\n"
+                                    if let logService {
+                                        logService.writeRaw(Data(msg.utf8))
+                                    } else {
+                                        Swift.print(msg, terminator: "")
+                                    }
                                 }
+                                onStatusUpdate?("[tool: \(name)]")
                             }
                         }
                     }
@@ -215,12 +295,13 @@ private final class StreamParser: @unchecked Sendable {
             }
 
         case "result":
-            // Capture structured_output from the final result event
+            lock.lock()
+            _rawResultLine = line
+            _streamResult = try? JSONDecoder().decode(StreamResult.self, from: data)
             if let so = json["structured_output"] {
-                lock.lock()
                 _structuredOutput = so
-                lock.unlock()
             }
+            lock.unlock()
 
         default:
             break
