@@ -65,7 +65,7 @@ Do **not** over-abstract here — the goal is mild readability improvement, not 
 
 **Completed**: Extracted `buildProcess(prompt:jsonSchema:workingDirectory:)` returning `(Process, stdoutPipe: Pipe, stderrPipe: Pipe)`. The `call` method now starts with a single destructuring call and proceeds with the linear run/drain/decode flow. Build passes.
 
-## - [ ] Phase 4: Validation
+## - [x] Phase 4: Validation
 
 **Skills to read**: `swift-testing`
 
@@ -73,3 +73,5 @@ Do **not** over-abstract here — the goal is mild readability improvement, not 
 2. Run `swift test` (if tests exist) to confirm no regressions
 3. Manually verify that the public API of `ClaudeService` is unchanged — same `call` signature, same `Error` enum cases, same `StreamResult` struct
 4. Spot-check that the `StreamParser` logic is functionally identical (same output/logging behavior, same lock discipline)
+
+**Completed**: `swift build` passes. Fixed 3 pre-existing test compilation errors (stale `Execute.repo`/`Execute.config` references and renamed `noStructuredOutput` → `claudeError` test case) — all 45 tests pass. Public API verified unchanged: same `call` signature, same `Error` enum cases, same `StreamResult` struct. StreamParser logic spot-checked: all code paths (assistant text/tool_use emission, result event lock discipline with safer `defer` pattern) are functionally identical to the original.

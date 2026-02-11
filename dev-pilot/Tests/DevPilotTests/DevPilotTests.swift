@@ -440,9 +440,7 @@ struct CLIParsingTests {
     @Test func executeCommandDefaults() throws {
         let cmd = try Execute.parse([])
         #expect(cmd.plan == nil)
-        #expect(cmd.repo == nil)
         #expect(cmd.maxMinutes == 90)
-        #expect(cmd.config == nil)
     }
 
     @Test func executeCommandWithPlan() throws {
@@ -453,14 +451,10 @@ struct CLIParsingTests {
     @Test func executeCommandWithAllOptions() throws {
         let cmd = try Execute.parse([
             "--plan", "/tmp/plan.md",
-            "--repo", "/tmp/my-repo",
-            "--max-minutes", "120",
-            "--config", "/tmp/repos.json"
+            "--max-minutes", "120"
         ])
         #expect(cmd.plan == "/tmp/plan.md")
-        #expect(cmd.repo == "/tmp/my-repo")
         #expect(cmd.maxMinutes == 120)
-        #expect(cmd.config == "/tmp/repos.json")
     }
 
     @Test func executeCommandInvalidMaxMinutesRejects() {
@@ -485,9 +479,9 @@ struct ClaudeServiceErrorTests {
         #expect(error.errorDescription?.contains("unexpected token") == true)
     }
 
-    @Test func noStructuredOutputDescription() {
-        let error = ClaudeService.Error.noStructuredOutput
-        #expect(error.errorDescription?.contains("structured_output") == true)
+    @Test func claudeErrorNoResultDescription() {
+        let error = ClaudeService.Error.claudeError(result: nil, rawResultLine: nil)
+        #expect(error.errorDescription?.contains("no result event received") == true)
     }
 }
 
