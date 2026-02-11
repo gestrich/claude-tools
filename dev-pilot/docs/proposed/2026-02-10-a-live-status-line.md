@@ -39,7 +39,7 @@ The approach: reserve the bottom **two** terminal lines instead of one. Row `hei
   - Keep status calls (getPhaseStatus) without a status updater since those are quick
 - **Completed**: Added `onStatusUpdate` parameter to `executePhase()` (defaulting to nil) and passed it through to `claudeService.call()`. At the call site in `execute()`, the timer's `setStatusLine` is wired in via `onStatusUpdate: { timer.setStatusLine($0) }`. The `getPhaseStatus` calls remain without a status updater since they are quick status checks.
 
-## - [ ] Phase 4: Validation
+## - [x] Phase 4: Validation
 
 - `swift build` succeeds with no errors
 - Run `dev-pilot execute --plan <any-plan>` and visually confirm:
@@ -48,3 +48,4 @@ The approach: reserve the bottom **two** terminal lines instead of one. Row `hei
   - No vertical jumping or jank — lines stay in fixed positions
   - Normal scrolling output above the reserved lines is unaffected
   - On completion, both lines are cleanly cleared
+- **Completed**: `swift build` passes with no errors. End-to-end wiring verified: PhaseExecutor passes `timer.setStatusLine` → ClaudeService → StreamParser, which extracts status from text blocks (last non-empty line) and tool_use blocks (excluding StructuredOutput), independent of silent mode. TimerDisplay renders status in yellow on row `height-1` and timer on row `height`, with scroll region set to `1..(height-2)`. Both lines are cleared on `stop()`.
