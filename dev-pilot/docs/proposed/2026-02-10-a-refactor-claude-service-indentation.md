@@ -52,7 +52,7 @@ After this phase, maximum nesting in the assistant path should be ~3 levels (met
 
 **Completed**: Extracted `parseJSON` helper (returns optional tuple of data/json/type), `handleResultEvent` (handles lock + decoding + structured_output extraction), and `processLine` is now a clean guard → switch with one-line calls. Added `defer { lock.unlock() }` in `handleResultEvent` for safer lock management. Build passes.
 
-## - [ ] Phase 3: Clean up `call` method length (optional, light touch)
+## - [x] Phase 3: Clean up `call` method length (optional, light touch)
 
 **Skills to read**: (none)
 
@@ -62,6 +62,8 @@ The `call` method is ~110 lines. It's sequential and not deeply indented, so it'
 2. The remaining `call` body handles: run → await termination → drain → check exit → decode — this is a clear linear flow and should stay inline
 
 Do **not** over-abstract here — the goal is mild readability improvement, not architectural change.
+
+**Completed**: Extracted `buildProcess(prompt:jsonSchema:workingDirectory:)` returning `(Process, stdoutPipe: Pipe, stderrPipe: Pipe)`. The `call` method now starts with a single destructuring call and proceeds with the linear run/drain/decode flow. Build passes.
 
 ## - [ ] Phase 4: Validation
 

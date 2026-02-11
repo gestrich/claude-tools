@@ -56,42 +56,11 @@ struct ClaudeService {
         silent: Bool = false,
         onStatusUpdate: ((String) -> Void)? = nil
     ) async throws -> T {
-        let claudePath = findClaudePath()
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        var args = [
-            "caffeinate", "-dimsu",
-            claudePath, "--dangerously-skip-permissions", "-p",
-            "--output-format", "stream-json",
-            "--verbose",
-            "--json-schema", jsonSchema
-        ]
-        args.append(prompt)
-        process.arguments = args
-
-        if let workingDirectory {
-            process.currentDirectoryURL = workingDirectory
-        }
-
-        var environment = ProcessInfo.processInfo.environment
-        let additionalPaths = [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/Users/bill/.local/bin"
-        ]
-        if let existingPath = environment["PATH"] {
-            environment["PATH"] = additionalPaths.joined(separator: ":") + ":" + existingPath
-        } else {
-            environment["PATH"] = additionalPaths.joined(separator: ":") + ":/usr/bin:/bin"
-        }
-        process.environment = environment
-
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        let (process, stdoutPipe, stderrPipe) = buildProcess(
+            prompt: prompt,
+            jsonSchema: jsonSchema,
+            workingDirectory: workingDirectory
+        )
 
         // Stream stdout line-by-line (stream-json emits one JSON event per line)
         let streamParser = StreamParser(silent: silent, onStatusUpdate: onStatusUpdate)
@@ -157,6 +126,51 @@ struct ClaudeService {
             let rawJSON = String(data: outputData, encoding: .utf8) ?? "<unreadable>"
             throw Error.jsonParsingFailed("Could not decode \(T.self) from: \(rawJSON). Error: \(error.localizedDescription)")
         }
+    }
+
+    private func buildProcess(
+        prompt: String,
+        jsonSchema: String,
+        workingDirectory: URL?
+    ) -> (Process, stdoutPipe: Pipe, stderrPipe: Pipe) {
+        let claudePath = findClaudePath()
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        var args = [
+            "caffeinate", "-dimsu",
+            claudePath, "--dangerously-skip-permissions", "-p",
+            "--output-format", "stream-json",
+            "--verbose",
+            "--json-schema", jsonSchema
+        ]
+        args.append(prompt)
+        process.arguments = args
+
+        if let workingDirectory {
+            process.currentDirectoryURL = workingDirectory
+        }
+
+        var environment = ProcessInfo.processInfo.environment
+        let additionalPaths = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/Users/bill/.local/bin"
+        ]
+        if let existingPath = environment["PATH"] {
+            environment["PATH"] = additionalPaths.joined(separator: ":") + ":" + existingPath
+        } else {
+            environment["PATH"] = additionalPaths.joined(separator: ":") + ":/usr/bin:/bin"
+        }
+        process.environment = environment
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        return (process, stdoutPipe, stderrPipe)
     }
 
     private func findClaudePath() -> String {
