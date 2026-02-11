@@ -259,40 +259,7 @@ private final class StreamParser: @unchecked Sendable {
 
         switch type {
         case "assistant":
-            if let message = json["message"] as? [String: Any],
-               let content = message["content"] as? [[String: Any]] {
-                for block in content {
-                    if let blockType = block["type"] as? String {
-                        if blockType == "text", let text = block["text"] as? String {
-                            if !silent {
-                                if let logService {
-                                    logService.writeRaw(Data((text).utf8))
-                                } else {
-                                    Swift.print(text, terminator: "")
-                                }
-                            }
-                            if let onStatusUpdate {
-                                let lastLine = text.split(separator: "\n", omittingEmptySubsequences: true).last.map(String.init)
-                                if let lastLine, !lastLine.isEmpty {
-                                    onStatusUpdate(lastLine)
-                                }
-                            }
-                        } else if blockType == "tool_use", let name = block["name"] as? String {
-                            if name != "StructuredOutput" {
-                                if !silent {
-                                    let msg = "[tool: \(name)]\n"
-                                    if let logService {
-                                        logService.writeRaw(Data(msg.utf8))
-                                    } else {
-                                        Swift.print(msg, terminator: "")
-                                    }
-                                }
-                                onStatusUpdate?("[tool: \(name)]")
-                            }
-                        }
-                    }
-                }
-            }
+            handleAssistantMessage(json, logService: logService)
 
         case "result":
             lock.lock()
@@ -305,6 +272,48 @@ private final class StreamParser: @unchecked Sendable {
 
         default:
             break
+        }
+    }
+
+    private func handleAssistantMessage(_ json: [String: Any], logService: LogService?) {
+        guard let message = json["message"] as? [String: Any],
+              let content = message["content"] as? [[String: Any]] else { return }
+
+        for block in content {
+            handleContentBlock(block, logService: logService)
+        }
+    }
+
+    private func handleContentBlock(_ block: [String: Any], logService: LogService?) {
+        guard let blockType = block["type"] as? String else { return }
+
+        switch blockType {
+        case "text":
+            guard let text = block["text"] as? String else { return }
+            emit(text, logService: logService)
+            if let onStatusUpdate {
+                let lastLine = text.split(separator: "\n", omittingEmptySubsequences: true).last.map(String.init)
+                if let lastLine, !lastLine.isEmpty {
+                    onStatusUpdate(lastLine)
+                }
+            }
+
+        case "tool_use":
+            guard let name = block["name"] as? String, name != "StructuredOutput" else { return }
+            emit("[tool: \(name)]\n", logService: logService)
+            onStatusUpdate?("[tool: \(name)]")
+
+        default:
+            break
+        }
+    }
+
+    private func emit(_ text: String, logService: LogService?) {
+        guard !silent else { return }
+        if let logService {
+            logService.writeRaw(Data(text.utf8))
+        } else {
+            Swift.print(text, terminator: "")
         }
     }
 }
