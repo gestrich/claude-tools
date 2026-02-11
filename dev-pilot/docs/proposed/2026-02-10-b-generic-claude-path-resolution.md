@@ -15,6 +15,6 @@ No project-level CLAUDE.md found. No skills to reference.
   - Keep the remaining generic paths: `~/.local/bin/claude` (tilde-expanded), `/usr/local/bin/claude`, and bare `claude` (PATH fallback)
 - Also reordered so tilde-expanded `~/.local/bin/claude` is checked first (user-local install takes priority)
 
-## - [ ] Phase 2: Validation
+## - [x] Phase 2: Validation
 
 - `swift build -c release` succeeds with no errors
