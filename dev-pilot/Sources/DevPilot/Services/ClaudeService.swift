@@ -253,25 +253,32 @@ private final class StreamParser: @unchecked Sendable {
     }
 
     private func processLine(_ line: String, logService: LogService?) {
-        guard let data = line.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = json["type"] as? String else { return }
+        guard let (data, json, type) = parseJSON(line) else { return }
 
         switch type {
         case "assistant":
             handleAssistantMessage(json, logService: logService)
-
         case "result":
-            lock.lock()
-            _rawResultLine = line
-            _streamResult = try? JSONDecoder().decode(StreamResult.self, from: data)
-            if let so = json["structured_output"] {
-                _structuredOutput = so
-            }
-            lock.unlock()
-
+            handleResultEvent(json, data: data, rawLine: line)
         default:
             break
+        }
+    }
+
+    private func parseJSON(_ line: String) -> (data: Data, json: [String: Any], type: String)? {
+        guard let data = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = json["type"] as? String else { return nil }
+        return (data, json, type)
+    }
+
+    private func handleResultEvent(_ json: [String: Any], data: Data, rawLine: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        _rawResultLine = rawLine
+        _streamResult = try? JSONDecoder().decode(StreamResult.self, from: data)
+        if let so = json["structured_output"] {
+            _structuredOutput = so
         }
     }
 

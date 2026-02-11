@@ -42,13 +42,15 @@ After this phase, maximum nesting in the assistant path should be ~3 levels (met
 
 **Completed**: Extracted three helpers (`handleAssistantMessage`, `handleContentBlock`, `emit`). Max nesting in the assistant path is now 3 levels. Build passes.
 
-## - [ ] Phase 2: Flatten `processLine` — the `"result"` case & top-level switch
+## - [x] Phase 2: Flatten `processLine` — the `"result"` case & top-level switch
 
 **Skills to read**: (none)
 
 1. Extract `private func handleResultEvent(_ json: [String: Any], data: Data)` for the `"result"` case (lines 297–304)
 2. The top-level `processLine` should become a clean `guard` + `switch` with one-line calls to the extracted handlers
 3. Consider converting the initial JSON parsing guard chain into a small `private func parseJSON(_ line: String) -> (data: Data, json: [String: Any], type: String)?` if it reads cleaner
+
+**Completed**: Extracted `parseJSON` helper (returns optional tuple of data/json/type), `handleResultEvent` (handles lock + decoding + structured_output extraction), and `processLine` is now a clean guard → switch with one-line calls. Added `defer { lock.unlock() }` in `handleResultEvent` for safer lock management. Build passes.
 
 ## - [ ] Phase 3: Clean up `call` method length (optional, light touch)
 
