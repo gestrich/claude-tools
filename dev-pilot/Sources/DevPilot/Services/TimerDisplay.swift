@@ -6,6 +6,7 @@ final class TimerDisplay: @unchecked Sendable {
     private let lock = NSLock()
     private var phaseStartTime: Date = Date()
     private var running = false
+    private var statusLine: String = ""
 
     init(maxRuntimeSeconds: Int, scriptStartTime: Date) {
         self.maxRuntimeSeconds = maxRuntimeSeconds
@@ -19,6 +20,12 @@ final class TimerDisplay: @unchecked Sendable {
         return String(format: "%02d:%02d:%02d", h, m, s)
     }
 
+    func setStatusLine(_ text: String) {
+        lock.lock()
+        statusLine = text
+        lock.unlock()
+    }
+
     func start() {
         lock.lock()
         guard !running else {
@@ -30,9 +37,9 @@ final class TimerDisplay: @unchecked Sendable {
         lock.unlock()
 
         let size = terminalSize()
-        if size.height > 2 {
-            writeToStdout("\u{1B}[1;\(size.height - 1)r")
-            writeToStdout("\u{1B}[\(size.height - 1);1H")
+        if size.height > 3 {
+            writeToStdout("\u{1B}[1;\(size.height - 2)r")
+            writeToStdout("\u{1B}[\(size.height - 2);1H")
         }
 
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
@@ -54,7 +61,8 @@ final class TimerDisplay: @unchecked Sendable {
         let size = terminalSize()
         writeToStdout("\u{1B}[r")
         writeToStdout("\u{1B}[\(size.height);1H\u{1B}[K")
-        writeToStdout("\u{1B}[\(size.height - 1);1H\n")
+        writeToStdout("\u{1B}[\(size.height - 1);1H\u{1B}[K")
+        writeToStdout("\u{1B}[\(size.height - 2);1H\n")
     }
 
     private func timerLoop() {
@@ -72,16 +80,19 @@ final class TimerDisplay: @unchecked Sendable {
     private func updateDisplay() {
         lock.lock()
         let phaseStart = phaseStartTime
+        let currentStatus = statusLine
         lock.unlock()
 
         let now = Date()
         let phaseElapsed = Int(now.timeIntervalSince(phaseStart))
         let totalElapsed = Int(now.timeIntervalSince(scriptStartTime))
 
-        let display = "\u{1B}[0;36m\u{23F1}  Phase: \(Self.formatTime(phaseElapsed)) | Total: \(Self.formatTime(totalElapsed)) of \(Self.formatTime(maxRuntimeSeconds))\u{1B}[0m"
+        let timerText = "\u{1B}[0;36m\u{23F1}  Phase: \(Self.formatTime(phaseElapsed)) | Total: \(Self.formatTime(totalElapsed)) of \(Self.formatTime(maxRuntimeSeconds))\u{1B}[0m"
 
         let size = terminalSize()
-        writeToStdout("\u{1B}7\u{1B}[\(size.height);1H\u{1B}[K\(display)\u{1B}8")
+        let truncatedStatus = currentStatus.isEmpty ? "" : "\u{1B}[0;33m\(String(currentStatus.prefix(size.width)))\u{1B}[0m"
+
+        writeToStdout("\u{1B}7\u{1B}[\(size.height - 1);1H\u{1B}[K\(truncatedStatus)\u{1B}[\(size.height);1H\u{1B}[K\(timerText)\u{1B}8")
     }
 
     private func terminalSize() -> (width: Int, height: Int) {
