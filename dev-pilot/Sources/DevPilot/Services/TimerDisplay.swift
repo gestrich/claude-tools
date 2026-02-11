@@ -6,7 +6,8 @@ final class TimerDisplay: @unchecked Sendable {
     private let lock = NSLock()
     private var phaseStartTime: Date = Date()
     private var running = false
-    private var statusLine: String = ""
+    private static let statusLineCount = 5
+    private var statusLines: [String] = []
 
     init(maxRuntimeSeconds: Int, scriptStartTime: Date) {
         self.maxRuntimeSeconds = maxRuntimeSeconds
@@ -22,7 +23,10 @@ final class TimerDisplay: @unchecked Sendable {
 
     func setStatusLine(_ text: String) {
         lock.lock()
-        statusLine = text
+        statusLines.append(text)
+        if statusLines.count > Self.statusLineCount {
+            statusLines.removeFirst(statusLines.count - Self.statusLineCount)
+        }
         lock.unlock()
     }
 
@@ -36,10 +40,11 @@ final class TimerDisplay: @unchecked Sendable {
         running = true
         lock.unlock()
 
+        let reservedLines = Self.statusLineCount + 1
         let size = terminalSize()
-        if size.height > 3 {
-            writeToStdout("\u{1B}[1;\(size.height - 2)r")
-            writeToStdout("\u{1B}[\(size.height - 2);1H")
+        if size.height > reservedLines + 1 {
+            writeToStdout("\u{1B}[1;\(size.height - reservedLines)r")
+            writeToStdout("\u{1B}[\(size.height - reservedLines);1H")
         }
 
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
@@ -58,11 +63,13 @@ final class TimerDisplay: @unchecked Sendable {
 
         usleep(100_000)
 
+        let reservedLines = Self.statusLineCount + 1
         let size = terminalSize()
         writeToStdout("\u{1B}[r")
-        writeToStdout("\u{1B}[\(size.height);1H\u{1B}[K")
-        writeToStdout("\u{1B}[\(size.height - 1);1H\u{1B}[K")
-        writeToStdout("\u{1B}[\(size.height - 2);1H\n")
+        for i in 0..<reservedLines {
+            writeToStdout("\u{1B}[\(size.height - i);1H\u{1B}[K")
+        }
+        writeToStdout("\u{1B}[\(size.height - reservedLines);1H\n")
     }
 
     private func timerLoop() {
@@ -80,7 +87,7 @@ final class TimerDisplay: @unchecked Sendable {
     private func updateDisplay() {
         lock.lock()
         let phaseStart = phaseStartTime
-        let currentStatus = statusLine
+        let currentLines = statusLines
         lock.unlock()
 
         let now = Date()
@@ -90,9 +97,28 @@ final class TimerDisplay: @unchecked Sendable {
         let timerText = "\u{1B}[0;36m\u{23F1}  Phase: \(Self.formatTime(phaseElapsed)) | Total: \(Self.formatTime(totalElapsed)) of \(Self.formatTime(maxRuntimeSeconds))\u{1B}[0m"
 
         let size = terminalSize()
-        let truncatedStatus = currentStatus.isEmpty ? "" : "\u{1B}[0;33m\(String(currentStatus.prefix(size.width)))\u{1B}[0m"
-
-        writeToStdout("\u{1B}7\u{1B}[\(size.height - 1);1H\u{1B}[K\(truncatedStatus)\u{1B}[\(size.height);1H\u{1B}[K\(timerText)\u{1B}8")
+        let count = Self.statusLineCount
+        // Rows height-count through height-1 are status, row height is timer
+        let firstStatusRow = size.height - count
+        var output = "\u{1B}7" // save cursor
+        for i in 0..<count {
+            let row = firstStatusRow + i
+            let text: String
+            if i < currentLines.count {
+                let lineIndex = currentLines.count - count + i
+                if lineIndex >= 0 {
+                    text = "\u{1B}[0;33m\(String(currentLines[lineIndex].prefix(size.width)))\u{1B}[0m"
+                } else {
+                    text = ""
+                }
+            } else {
+                text = ""
+            }
+            output += "\u{1B}[\(row);1H\u{1B}[K\(text)"
+        }
+        output += "\u{1B}[\(size.height);1H\u{1B}[K\(timerText)"
+        output += "\u{1B}8" // restore cursor
+        writeToStdout(output)
     }
 
     private func terminalSize() -> (width: Int, height: Int) {

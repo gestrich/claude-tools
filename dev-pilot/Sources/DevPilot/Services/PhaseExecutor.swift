@@ -141,10 +141,6 @@ struct PhaseExecutor {
             playCompletionSound()
             moveToCompleted(planPath: planPath, repoPath: repoPath)
 
-            if let repoPath = repoPath {
-                openPullRequest(repoPath: repoPath, githubUser: repository?.githubUser)
-            }
-
             if let worktreeService = worktreeService, let repoPath = repoPath {
                 log("")
                 logColored("Cleaning up worktree...", color: .cyan)
