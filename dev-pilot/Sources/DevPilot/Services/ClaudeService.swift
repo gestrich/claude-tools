@@ -23,7 +23,8 @@ struct ClaudeService {
         jsonSchema: String,
         workingDirectory: URL? = nil,
         logService: LogService? = nil,
-        needsTools: Bool = true
+        needsTools: Bool = true,
+        silent: Bool = false
     ) async throws -> T {
         let claudePath = findClaudePath()
 
@@ -63,7 +64,7 @@ struct ClaudeService {
         process.standardError = stderrPipe
 
         // Stream stdout line-by-line (stream-json emits one JSON event per line)
-        let streamParser = StreamParser()
+        let streamParser = StreamParser(silent: silent)
 
         stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
             let data = handle.availableData
@@ -76,8 +77,12 @@ struct ClaudeService {
             let data = handle.availableData
             guard !data.isEmpty else { return }
             if let logService {
-                logService.writeRaw(data)
-            } else {
+                if silent {
+                    logService.writeToFile(data)
+                } else {
+                    logService.writeRaw(data)
+                }
+            } else if !silent {
                 FileHandle.standardError.write(data)
             }
         }
@@ -146,6 +151,11 @@ private final class StreamParser: @unchecked Sendable {
     private let lock = NSLock()
     private var buffer = ""
     private var _structuredOutput: Any?
+    private let silent: Bool
+
+    init(silent: Bool = false) {
+        self.silent = silent
+    }
 
     var structuredOutput: Any? {
         lock.lock()
@@ -179,7 +189,7 @@ private final class StreamParser: @unchecked Sendable {
 
         switch type {
         case "assistant":
-            // Extract text content from assistant messages and stream it
+            guard !silent else { break }
             if let message = json["message"] as? [String: Any],
                let content = message["content"] as? [[String: Any]] {
                 for block in content {
@@ -191,7 +201,6 @@ private final class StreamParser: @unchecked Sendable {
                                 Swift.print(text, terminator: "")
                             }
                         } else if blockType == "tool_use", let name = block["name"] as? String {
-                            // Show tool use activity (but not StructuredOutput since that's internal)
                             if name != "StructuredOutput" {
                                 let msg = "[tool: \(name)]\n"
                                 if let logService {

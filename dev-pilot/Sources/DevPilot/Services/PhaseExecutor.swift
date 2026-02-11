@@ -47,11 +47,13 @@ struct PhaseExecutor {
 
         if nextIndex == -1 {
             logColored("All steps already complete!", color: .green)
+            moveToCompleted(planPath: planPath, repoPath: repoPath)
             return
         }
 
         logColored("Starting from Step \(nextIndex + 1): \(phases[nextIndex].description)\n", color: .cyan)
 
+        let timer = TimerDisplay(maxRuntimeSeconds: maxRuntimeSeconds, scriptStartTime: scriptStart)
         var phasesExecuted = 0
 
         while nextIndex != -1 {
@@ -70,37 +72,41 @@ struct PhaseExecutor {
             logColored("Running claude...\n", color: .blue)
 
             let phaseStart = Date()
+            timer.start()
 
+            let phaseResult: PhaseResult
             do {
-                let result = try await executePhase(
+                phaseResult = try await executePhase(
                     planPath: planPath,
                     phaseIndex: nextIndex,
                     description: phase.description,
                     repoPath: repoPath,
                     repository: repository
                 )
-
-                let phaseElapsed = Int(Date().timeIntervalSince(phaseStart))
-                let totalElapsed = Int(Date().timeIntervalSince(scriptStart))
-
-                if !result.success {
-                    logColored("\nStep \(nextIndex + 1) reported failure", color: .red)
-                    logColored("Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
-                    throw Error.phaseFailed(nextIndex, phase.description)
-                }
-
-                logColored("\nStep \(nextIndex + 1) completed successfully", color: .green)
-                logColored("Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
-                printDivider()
-                log("")
-
-            } catch let error as ClaudeService.Error {
+            } catch {
+                timer.stop()
                 let phaseElapsed = Int(Date().timeIntervalSince(phaseStart))
                 let totalElapsed = Int(Date().timeIntervalSince(scriptStart))
                 logColored("\nPhase \(nextIndex + 1) failed: \(error.localizedDescription)", color: .red)
-                logColored("Phase time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+                logColored("\u{23F1}  Phase time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
                 throw Error.phaseFailed(nextIndex, phase.description)
             }
+
+            timer.stop()
+
+            let phaseElapsed = Int(Date().timeIntervalSince(phaseStart))
+            let totalElapsed = Int(Date().timeIntervalSince(scriptStart))
+
+            if !phaseResult.success {
+                logColored("\nStep \(nextIndex + 1) reported failure", color: .red)
+                logColored("\u{23F1}  Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+                throw Error.phaseFailed(nextIndex, phase.description)
+            }
+
+            logColored("\nStep \(nextIndex + 1) completed successfully", color: .green)
+            logColored("\u{23F1}  Step time: \(TimerDisplay.formatTime(phaseElapsed)) | Total: \(TimerDisplay.formatTime(totalElapsed))", color: .cyan)
+            printDivider()
+            log("")
 
             phasesExecuted += 1
 
@@ -118,7 +124,7 @@ struct PhaseExecutor {
         printSeparator()
 
         if nextIndex == -1 {
-            logColored("All steps completed successfully!", color: .green)
+            logColored("\u{2713} All steps completed successfully!", color: .green)
         } else {
             let remaining = phases.filter { !$0.isCompleted }.count
             logColored("Time limit reached — \(remaining) steps may remain", color: .yellow)
@@ -132,6 +138,7 @@ struct PhaseExecutor {
 
         if nextIndex == -1 {
             playCompletionSound()
+            moveToCompleted(planPath: planPath, repoPath: repoPath)
 
             if let repoPath = repoPath {
                 openPullRequest(repoPath: repoPath, githubUser: repository?.githubUser)
@@ -170,7 +177,8 @@ struct PhaseExecutor {
             prompt: prompt,
             jsonSchema: Self.statusSchema,
             workingDirectory: repoPath,
-            logService: logService
+            logService: logService,
+            silent: true
         )
     }
 
@@ -205,41 +213,52 @@ struct PhaseExecutor {
             prompt: prompt,
             jsonSchema: Self.executionSchema,
             workingDirectory: repoPath,
-            logService: logService
+            logService: logService,
+            silent: true
         )
     }
 
     // MARK: - Interactive Plan Selection
 
-    static func selectPlanningDoc() -> URL? {
-        let jobs = JobDirectory.list()
+    static func selectPlanningDoc(proposedDir: String = "docs/proposed") -> URL? {
+        let fm = FileManager.default
+        let dir = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent(proposedDir)
 
-        let sorted = Array(jobs.sorted { a, b in
-            let aDate = (try? a.planURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            let bDate = (try? b.planURL.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-            return aDate > bDate
-        }.prefix(5))
+        guard fm.fileExists(atPath: dir.path) else {
+            Self.printColoredStatic("Error: Directory not found: \(proposedDir)", color: .red)
+            return nil
+        }
+
+        let files: [URL]
+        do {
+            files = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])
+                .filter { $0.pathExtension == "md" }
+                .sorted { a, b in
+                    let aDate = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    let bDate = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    return aDate > bDate
+                }
+        } catch {
+            Self.printColoredStatic("Error reading \(proposedDir): \(error.localizedDescription)", color: .red)
+            return nil
+        }
+
+        let sorted = Array(files.prefix(5))
 
         guard !sorted.isEmpty else {
-            Self.printColoredStatic("No plans found in \(JobDirectory.baseURL.path)", color: .red)
+            Self.printColoredStatic("No .md files found in \(proposedDir)", color: .red)
             return nil
         }
 
         Self.printColoredStatic("No planning document specified.", color: .blue)
-        print("Recent jobs:\n")
+        print("Last \(ANSIColor.green.rawValue)\(sorted.count)\(ANSIColor.reset.rawValue) modified files in \(ANSIColor.green.rawValue)\(proposedDir)\(ANSIColor.reset.rawValue):\n")
 
-        for (i, job) in sorted.enumerated() {
-            let components = job.url.pathComponents
-            let baseCount = JobDirectory.baseURL.pathComponents.count
-            if components.count >= baseCount + 2 {
-                let repoId = components[baseCount]
-                let jobName = components[baseCount + 1]
-                print("  \(ANSIColor.yellow.rawValue)\(i + 1)\(ANSIColor.reset.rawValue)) [\(ANSIColor.cyan.rawValue)\(repoId)\(ANSIColor.reset.rawValue)] \(jobName)")
-            }
+        for (i, file) in sorted.enumerated() {
+            print("  \(ANSIColor.yellow.rawValue)\(i + 1)\(ANSIColor.reset.rawValue)) \(file.lastPathComponent)")
         }
 
         print()
-        Swift.print("Select a job to execute [1-\(sorted.count)] (default: 1): ", terminator: "")
+        Swift.print("Select a file to implement [1-\(sorted.count)] (default: 1): ", terminator: "")
 
         let input = readLine()?.trimmingCharacters(in: .whitespaces) ?? "1"
         let selection = input.isEmpty ? "1" : input
@@ -249,10 +268,48 @@ struct PhaseExecutor {
             return nil
         }
 
-        return sorted[idx - 1].planURL
+        return sorted[idx - 1]
     }
 
     // MARK: - Completion Handling
+
+    private func moveToCompleted(planPath: URL, repoPath: URL?) {
+        let fm = FileManager.default
+        let proposedDir = planPath.deletingLastPathComponent()
+        let completedDir = proposedDir.deletingLastPathComponent().appendingPathComponent("completed")
+
+        do {
+            if !fm.fileExists(atPath: completedDir.path) {
+                try fm.createDirectory(at: completedDir, withIntermediateDirectories: true)
+            }
+            let dest = completedDir.appendingPathComponent(planPath.lastPathComponent)
+            try fm.moveItem(at: planPath, to: dest)
+            logColored("Moved spec to \(dest.path)", color: .green)
+
+            let gitDir = repoPath ?? proposedDir
+            let gitAdd = Process()
+            gitAdd.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            gitAdd.arguments = ["git", "add", planPath.path, dest.path]
+            gitAdd.currentDirectoryURL = gitDir
+            gitAdd.standardOutput = FileHandle.nullDevice
+            gitAdd.standardError = FileHandle.nullDevice
+            try gitAdd.run()
+            gitAdd.waitUntilExit()
+
+            let gitCommit = Process()
+            gitCommit.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            gitCommit.arguments = ["git", "commit", "-m", "Move completed spec to docs/completed"]
+            gitCommit.currentDirectoryURL = gitDir
+            gitCommit.standardOutput = FileHandle.nullDevice
+            gitCommit.standardError = FileHandle.nullDevice
+            try gitCommit.run()
+            gitCommit.waitUntilExit()
+
+            logColored("Committed spec move", color: .green)
+        } catch {
+            logColored("Could not move spec: \(error.localizedDescription)", color: .yellow)
+        }
+    }
 
     private func openPullRequest(repoPath: URL, githubUser: String?) {
         if let githubUser {

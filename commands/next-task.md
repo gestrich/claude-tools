@@ -16,7 +16,7 @@ If there are uncommitted changes:
 
 ### Step 2: Identify the Planning Document
 
-If the user has not specified a planning document in this session, show them a list of recently edited documents in `docs/proposed/`:
+If the user has not specified a planning document in this session, show them a list of documents in `docs/proposed/` sorted by **file modification date** (newest first, descending). Do not sort by filename — filenames contain date prefixes but other non-dated docs may also exist.
 
 ```bash
 ls -lt docs/proposed/*.md 2>/dev/null | head -5
@@ -26,9 +26,9 @@ Present the files as a numbered list and ask which document they want to work on
 
 ### Step 3: Analyze the Document for Phases
 
-Read the planning document and identify all phases. Phases are typically formatted as:
-- `- [ ] Phase N: Description` (incomplete)
-- `- [x] Phase N: Description` (complete)
+Read the planning document and identify all phases. Phases are `##` headings with checkboxes:
+- `## - [ ] Phase N: Description` (incomplete)
+- `## - [x] Phase N: Description` (complete)
 
 Determine:
 1. Total number of phases
@@ -49,8 +49,9 @@ If the user declines, exit gracefully.
 
 Complete the phase by:
 1. Reading the detailed requirements from the planning document
-2. Implementing the required changes
-3. Updating the planning document to mark this phase as in-progress if helpful
+2. If the phase lists **Skills to read**, invoke those skills first to load relevant conventions and patterns. The guidance from skills may adjust the implementation approach — this is expected.
+3. Implementing the required changes
+4. Updating the planning document to mark this phase as in-progress if helpful
 
 Do NOT commit yet - wait for user review.
 
@@ -61,7 +62,14 @@ When implementation is complete:
 2. Ask: "Are you OK with these changes?"
 
 If the user says yes/ok/looks good:
-- Mark the phase as complete in the planning document (change `- [ ]` to `- [x]`)
+- Mark the phase as complete in the planning document (change `## - [ ]` to `## - [x]`)
+- Below the completed phase heading, add a completion note documenting what skills were used and key principles applied:
+  ```
+  ## - [x] Phase 2: Implement command parsing
+
+  **Skills used**: `swift-testing`, `design-kit`
+  **Principles applied**: Used factory pattern per design-kit conventions; tests follow swift-testing arrange/act/assert style
+  ```
 - Commit all changes with a message like: "Complete Phase N: [Description]"
 - Include any relevant technical notes in the commit body
 
@@ -112,10 +120,10 @@ After committing, check if this was the last phase:
 > Working with: docs/proposed/2025-01-03-1-add-voice-commands.md
 >
 > Phase Overview:
-> - [x] Phase 1: Set up voice input infrastructure
-> - [ ] Phase 2: Implement command parsing
-> - [ ] Phase 3: Add error handling
-> - [ ] Phase 4: Validation
+> ## - [x] Phase 1: Set up voice input infrastructure
+> ## - [ ] Phase 2: Implement command parsing
+> ## - [ ] Phase 3: Add error handling
+> ## - [ ] Phase 4: Validation
 >
 > **Next Phase:** Phase 2: Implement command parsing
 >

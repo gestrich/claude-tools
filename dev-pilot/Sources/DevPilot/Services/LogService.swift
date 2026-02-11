@@ -32,6 +32,10 @@ final class LogService {
 
     func writeRaw(_ data: Data) {
         FileHandle.standardError.write(data)
+        writeToFile(data)
+    }
+
+    func writeToFile(_ data: Data) {
         if let str = String(data: data, encoding: .utf8) {
             let stripped = Self.stripANSI(str)
             if let strippedData = stripped.data(using: .utf8) {

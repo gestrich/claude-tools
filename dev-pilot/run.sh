@@ -5,11 +5,12 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Build the project if needed
-if [ ! -f "$SCRIPT_DIR/.build/release/dev-pilot" ]; then
+# Build if binary is missing or sources are newer
+BINARY="$SCRIPT_DIR/.build/release/dev-pilot"
+NEWEST_SOURCE=$(find "$SCRIPT_DIR/Sources" -name '*.swift' -newer "$BINARY" 2>/dev/null | head -1)
+if [ ! -f "$BINARY" ] || [ -n "$NEWEST_SOURCE" ]; then
     echo "Building dev-pilot..."
-    cd "$SCRIPT_DIR"
-    swift build -c release
+    swift build -c release --package-path "$SCRIPT_DIR"
 fi
 
 # Check if a subcommand is provided (first non-flag argument)
