@@ -1,0 +1,18 @@
+{
+  "name": "gestrich-claude-tools-skills",
+  "version": "1.0.0",
+  "description": "Phased development workflow tools for Claude Code",
+  "owner": {
+    "name": "Bill Gestrich",
+    "url": "https://github.com/gestrich"
+  },
+  "plugins": [
+    {
+      "name": "claude-tools-skills",
+      "source": "./plugin",
+      "description": "Phased development workflow tools for Claude Code",
+      "version": "1.0.0",
+      "category": "development"
+    }
+  ]
+}
