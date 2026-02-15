@@ -15,7 +15,7 @@ When the caller specifies **autonomous mode** (e.g., "run in autonomous mode" or
 - **Step 2:** Auto-select the most recently modified plan in `docs/proposed/` (by file modification date). Do not ask which document.
 - **Step 4:** Auto-proceed with the next incomplete phase. Do not ask "Ready to work on this phase?"
 - **Step 6:** Auto-approve and commit changes. Do not ask "Are you OK with these changes?"
-- **Step 7:** Do not ask about continuing to the next phase or moving completed docs. Stop after completing one phase.
+- **Step 7:** Stop after completing one phase (do not continue to the next). If this was the last phase, auto-move the completed plan to `docs/completed/` and commit.
 
 All other steps (uncommitted changes check, skill loading, implementation, commit format) remain the same.
 
