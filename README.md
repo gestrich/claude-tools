@@ -139,11 +139,10 @@ claude-tools/
 │   │   └── gestrich-claude-tools-review/
 │   │       └── SKILL.md
 │   └── LICENSE
-├── docs/
-│   ├── proposed/           # Work-in-progress planning docs
-│   ├── completed/          # Finished planning docs
-│   └── reviews/            # Code review documents
-└── commands/               # Legacy command files (deprecated)
+└── docs/
+    ├── proposed/           # Work-in-progress planning docs
+    ├── completed/          # Finished planning docs
+    └── reviews/            # Code review documents
 ```
 
 ## Documentation Structure
