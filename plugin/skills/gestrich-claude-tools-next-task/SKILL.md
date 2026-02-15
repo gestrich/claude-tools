@@ -8,6 +8,17 @@ invoke: Execute phased work from planning documents with review and commit cycle
 
 This command implements phased work from a planning document. It guides the user through completing one phase at a time with review and commit cycles.
 
+## Autonomous Mode
+
+When the caller specifies **autonomous mode** (e.g., "run in autonomous mode" or "skip confirmations"), skip all user prompts:
+
+- **Step 2:** Auto-select the most recently modified plan in `docs/proposed/` (by file modification date). Do not ask which document.
+- **Step 4:** Auto-proceed with the next incomplete phase. Do not ask "Ready to work on this phase?"
+- **Step 6:** Auto-approve and commit changes. Do not ask "Are you OK with these changes?"
+- **Step 7:** Do not ask about continuing to the next phase or moving completed docs. Stop after completing one phase.
+
+All other steps (uncommitted changes check, skill loading, implementation, commit format) remain the same.
+
 ## Workflow
 
 ### Step 1: Check for Uncommitted Changes
