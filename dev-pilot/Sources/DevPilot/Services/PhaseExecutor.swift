@@ -112,7 +112,9 @@ struct PhaseExecutor {
             phasesExecuted += 1
 
             logColored("Fetching updated phase status...", color: .cyan)
-            statusResponse = try await getPhaseStatus(planPath: planPath, repoPath: repoPath)
+            timer.start()
+            statusResponse = try await getPhaseStatus(planPath: planPath, repoPath: repoPath, onStatusUpdate: { timer.setStatusLine($0) })
+            timer.stop()
             phases = statusResponse.phases
             nextIndex = statusResponse.nextPhaseIndex
 
@@ -159,7 +161,7 @@ struct PhaseExecutor {
     {"type":"object","properties":{"success":{"type":"boolean","description":"Whether the phase was completed successfully"}},"required":["success"]}
     """
 
-    private func getPhaseStatus(planPath: URL, repoPath: URL?) async throws -> PhaseStatusResponse {
+    private func getPhaseStatus(planPath: URL, repoPath: URL?, onStatusUpdate: ((String) -> Void)? = nil) async throws -> PhaseStatusResponse {
         let prompt = """
         Look at \(planPath.path) and analyze the phased implementation plan.
 
@@ -175,7 +177,8 @@ struct PhaseExecutor {
             jsonSchema: Self.statusSchema,
             workingDirectory: repoPath,
             logService: logService,
-            silent: true
+            silent: true,
+            onStatusUpdate: onStatusUpdate
         )
     }
 

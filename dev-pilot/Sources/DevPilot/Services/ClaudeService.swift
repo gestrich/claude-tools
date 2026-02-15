@@ -321,7 +321,6 @@ private final class StreamParser: @unchecked Sendable {
         case "tool_use":
             guard let name = block["name"] as? String, name != "StructuredOutput" else { return }
             emit("[tool: \(name)]\n", logService: logService)
-            onStatusUpdate?("[tool: \(name)]")
 
         default:
             break

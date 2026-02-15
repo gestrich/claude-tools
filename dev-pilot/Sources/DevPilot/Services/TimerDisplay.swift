@@ -37,6 +37,7 @@ final class TimerDisplay: @unchecked Sendable {
             return
         }
         phaseStartTime = Date()
+        statusLines = []
         running = true
         lock.unlock()
 
@@ -44,7 +45,6 @@ final class TimerDisplay: @unchecked Sendable {
         let size = terminalSize()
         if size.height > reservedLines + 1 {
             writeToStdout("\u{1B}[1;\(size.height - reservedLines)r")
-            writeToStdout("\u{1B}[\(size.height - reservedLines);1H")
         }
 
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
@@ -65,11 +65,13 @@ final class TimerDisplay: @unchecked Sendable {
 
         let reservedLines = Self.statusLineCount + 1
         let size = terminalSize()
+        writeToStdout("\u{1B}7")  // save cursor (in content area from last restore in updateDisplay)
         writeToStdout("\u{1B}[r")
         for i in 0..<reservedLines {
             writeToStdout("\u{1B}[\(size.height - i);1H\u{1B}[K")
         }
-        writeToStdout("\u{1B}[\(size.height - reservedLines);1H\n")
+        writeToStdout("\u{1B}8")  // restore cursor to content area
+        writeToStdout("\n")
     }
 
     private func timerLoop() {

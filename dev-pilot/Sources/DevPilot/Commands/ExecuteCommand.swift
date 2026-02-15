@@ -25,8 +25,9 @@ struct Execute: AsyncParsableCommand {
         }
 
         let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let logDir = planURL.deletingLastPathComponent()
-        let logService = try LogService(directory: logDir, label: "execute")
+        let logDir = JobDirectory.baseURL.appendingPathComponent("logs")
+        let planName = planURL.deletingPathExtension().lastPathComponent
+        let logService = try LogService(directory: logDir, label: "execute-\(planName)")
         logService.log("dev-pilot execute started")
         logService.log("Plan: \(planURL.path)")
         logService.log("Repo: \(cwd.path)")
