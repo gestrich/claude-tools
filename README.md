@@ -31,7 +31,7 @@ Create structured code review documents for changes. This skill:
 
 1. Add the marketplace (if not already added):
 ```bash
-claude marketplace add https://github.com/gestrich/claude-tools-skills
+claude plugin marketplace add https://github.com/gestrich/claude-tools-skills
 ```
 
 2. Install the plugin with system-wide scope:
@@ -104,7 +104,7 @@ To update to the latest version:
 
 1. Update the marketplace:
 ```bash
-claude marketplace update
+claude plugin marketplace update
 ```
 
 2. Uninstall and reinstall the plugin:
