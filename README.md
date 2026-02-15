@@ -27,21 +27,47 @@ Create structured code review documents for changes. This skill:
 
 ## Installation
 
-### From Local Directory
+### From Marketplace (Recommended)
 
-1. Add to your `~/.claude/config.json`:
+1. Add the marketplace (if not already added):
+```bash
+claude marketplace add https://github.com/gestrich/claude-tools-skills
+```
 
+2. Install the plugin with system-wide scope:
+```bash
+claude plugin install claude-tools-skills@gestrich-claude-tools-skills --scope user
+```
+
+The `--scope user` parameter enables system-wide installation for all projects.
+
+3. Restart Claude Code
+
+### From Local Directory (For Development)
+
+1. Clone this repository:
+```bash
+git clone https://github.com/gestrich/claude-tools-skills.git
+cd claude-tools-skills
+```
+
+2. Run Claude with the plugin directory:
+```bash
+claude --plugin-dir ~/path/to/claude-tools-skills/plugin
+```
+
+**Or** add to your `~/.claude/config.json`:
 ```json
 {
   "plugins": [
     {
-      "path": "/Users/bill/Developer/personal/claude-tools/plugin"
+      "path": "/path/to/claude-tools-skills/plugin"
     }
   ]
 }
 ```
 
-2. Restart Claude Code
+Then restart Claude Code.
 
 ## Usage
 
@@ -52,6 +78,49 @@ Invoke skills using slash commands in Claude Code:
 /gestrich-claude-tools-plan
 /gestrich-claude-tools-review
 ```
+
+**Note**: The VSCode extension provides the best experience with slash command discovery. In the terminal, slash commands may not appear in autocomplete but will still work when typed.
+
+## Troubleshooting
+
+### Plugin Not Appearing After Installation
+
+If the plugin doesn't appear after marketplace installation:
+
+1. Manually enable it by editing `~/.claude/config.json`:
+```json
+{
+  "enabledPlugins": [
+    "claude-tools-skills@gestrich-claude-tools-skills"
+  ]
+}
+```
+
+2. Restart Claude Code
+
+### Updating the Plugin
+
+To update to the latest version:
+
+1. Update the marketplace:
+```bash
+claude marketplace update
+```
+
+2. Uninstall and reinstall the plugin:
+```bash
+claude plugin uninstall claude-tools-skills@gestrich-claude-tools-skills
+claude plugin install claude-tools-skills@gestrich-claude-tools-skills --scope user
+```
+
+**Note**: Asking Claude to update via CLI doesn't work reliably — manual reinstallation is more dependable.
+
+### Slash Commands Not Working
+
+- Verify the plugin is installed: `claude plugin list`
+- Check that skills appear in the available skills list
+- Try restarting Claude Code
+- Use the VSCode extension for better slash command discovery
 
 ## Project Structure
 
