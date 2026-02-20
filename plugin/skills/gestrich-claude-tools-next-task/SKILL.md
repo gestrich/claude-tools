@@ -52,19 +52,13 @@ Determine:
 2. Which phases are complete
 3. The next incomplete phase (the one to work on)
 
-### Step 4: Confirm the Phase
+### Step 4: Present and Implement the Phase
 
 Present the next phase to the user:
 
 "**Next Phase:** Phase N: [Description]"
 
-Ask: "Ready to work on this phase?"
-
-If the user declines, exit gracefully.
-
-### Step 5: Implement the Phase
-
-Complete the phase by:
+Then immediately begin implementation by:
 1. Reading the detailed requirements from the planning document
 2. If the phase lists **Skills to read**, invoke those skills first to load relevant conventions and patterns. The guidance from skills may adjust the implementation approach — this is expected.
 3. Implementing the required changes
@@ -72,7 +66,7 @@ Complete the phase by:
 
 Do NOT commit yet - wait for user review.
 
-### Step 6: Review Changes
+### Step 5: Review Changes
 
 When implementation is complete:
 1. Show a summary of what was changed
@@ -95,7 +89,7 @@ If the user provides feedback:
 - Ask for review again
 - Repeat until approved
 
-### Step 7: Check for Completion or Continue
+### Step 6: Check for Completion or Continue
 
 After committing, check if this was the last phase:
 
@@ -143,10 +137,6 @@ After committing, check if this was the last phase:
 > ## - [ ] Phase 4: Validation
 >
 > **Next Phase:** Phase 2: Implement command parsing
->
-> Ready to work on this phase?
-
-[User confirms]
 
 [Claude implements the phase]
 
@@ -162,6 +152,10 @@ After committing, check if this was the last phase:
 > Marked Phase 2 as complete and committed changes.
 >
 > Ready to work on the next phase? (Phase 3: Add error handling)
+
+[User confirms]
+
+[Claude implements Phase 3]
 ```
 
 ## Commit Message Format
