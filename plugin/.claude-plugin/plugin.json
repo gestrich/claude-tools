@@ -1,6 +1,5 @@
 {
   "name": "claude-tools-skills",
-  "version": "1.0.0",
   "description": "Phased development workflow tools for Claude Code",
   "author": {
     "name": "Bill Gestrich",
