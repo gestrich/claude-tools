@@ -8,17 +8,6 @@ invoke: Execute phased work from planning documents with review and commit cycle
 
 This command implements phased work from a planning document. It guides the user through completing one phase at a time with review and commit cycles.
 
-## Autonomous Mode
-
-When the caller specifies **autonomous mode** (e.g., "run in autonomous mode" or "skip confirmations"), skip all user prompts:
-
-- **Step 2:** Auto-select the most recently modified plan in `docs/proposed/` (by file modification date). Do not ask which document.
-- **Step 4:** Auto-proceed with the next incomplete phase. Do not ask "Ready to work on this phase?"
-- **Step 6:** Auto-approve and commit changes. Do not ask "Are you OK with these changes?"
-- **Step 7:** Stop after completing one phase (do not continue to the next). If this was the last phase, auto-move the completed plan to `docs/completed/` and commit.
-
-All other steps (uncommitted changes check, skill loading, implementation, commit format) remain the same.
-
 ## Workflow
 
 ### Step 1: Check for Uncommitted Changes
@@ -33,13 +22,13 @@ If there are uncommitted changes:
 
 ### Step 2: Identify the Planning Document
 
-If the user has not specified a planning document in this session, show them a list of documents in `docs/proposed/` sorted by **file modification date** (newest first, descending). Do not sort by filename — filenames contain date prefixes but other non-dated docs may also exist.
+If the user specified a planning document in their prompt, use that. Otherwise, auto-select the most recently modified document in `docs/proposed/` (by file modification date):
 
 ```bash
-ls -lt docs/proposed/*.md 2>/dev/null | head -5
+ls -lt docs/proposed/*.md 2>/dev/null | head -1
 ```
 
-Present the files as a numbered list and ask which document they want to work on. Store this choice for the session.
+Tell the user which document was selected. Store this choice for the session.
 
 ### Step 3: Analyze the Document for Phases
 
@@ -119,16 +108,7 @@ After committing, check if this was the last phase:
 > Checking for uncommitted changes...
 > No uncommitted changes found.
 
-> No planning document specified. Recent documents in docs/proposed/:
->
-> 1. 2025-01-03-1-add-voice-commands.md (modified 2 hours ago)
-> 2. 2025-01-02-1-refactor-api.md (modified yesterday)
->
-> Which document would you like to work on?
-
-[User selects 1]
-
-> Working with: docs/proposed/2025-01-03-1-add-voice-commands.md
+> Auto-selected most recent plan: docs/proposed/2025-01-03-1-add-voice-commands.md
 >
 > Phase Overview:
 > ## - [x] Phase 1: Set up voice input infrastructure
